@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Cointegração de Pares</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>Cointegração de Pares</h1>
+    <form method="post">
+        <label for="ticker1">Ticker 1:</label>
+        <input type="text" name="ticker1" required>
+        <label for="ticker2">Ticker 2:</label>
+        <input type="text" name="ticker2" required>
+        <button type="submit">Analisar</button>
+    </form>
+
+    {% if error %}
+        <p style="color: red;">Erro: {{ error }}</p>
+    {% endif %}
+
+    {% for plot in plot_divs %}
+        <div id="plot-{{ loop.index }}"></div>
+        <script>
+            var fig = {{ plot | safe }};
+            Plotly.newPlot("plot-{{ loop.index }}", fig.data, fig.layout);
+        </script>
+    {% endfor %}
+</body>
+</html>

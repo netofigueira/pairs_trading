@@ -24,12 +24,16 @@ class LocalDataLake:
         path = self.root / "market" / venue / "klines" / symbol.upper() / f"{interval}.csv.gz"
         path.parent.mkdir(parents=True, exist_ok=True)
         incoming = frame.copy()
-        incoming["open_time"] = pd.to_datetime(incoming["open_time"], utc=True)
-        incoming["close_time"] = pd.to_datetime(incoming["close_time"], utc=True)
+        incoming["open_time"] = pd.to_datetime(incoming["open_time"], utc=True, format="mixed")
+        incoming["close_time"] = pd.to_datetime(incoming["close_time"], utc=True, format="mixed")
         if path.exists():
             existing = pd.read_csv(path, parse_dates=["open_time", "close_time"])
-            existing["open_time"] = pd.to_datetime(existing["open_time"], utc=True)
-            existing["close_time"] = pd.to_datetime(existing["close_time"], utc=True)
+            existing["open_time"] = pd.to_datetime(
+                existing["open_time"], utc=True, format="mixed"
+            )
+            existing["close_time"] = pd.to_datetime(
+                existing["close_time"], utc=True, format="mixed"
+            )
             incoming = pd.concat((existing, incoming), ignore_index=True)
         merged = incoming.drop_duplicates(subset="open_time", keep="last").sort_values("open_time")
         temporary = path.with_suffix(".tmp")
@@ -44,10 +48,14 @@ class LocalDataLake:
         path = self.root / "market" / venue / "funding" / f"{symbol.upper()}.csv.gz"
         path.parent.mkdir(parents=True, exist_ok=True)
         incoming = frame.copy()
-        incoming["funding_time"] = pd.to_datetime(incoming["funding_time"], utc=True)
+        incoming["funding_time"] = pd.to_datetime(
+            incoming["funding_time"], utc=True, format="mixed"
+        )
         if path.exists():
             existing = pd.read_csv(path, parse_dates=["funding_time"])
-            existing["funding_time"] = pd.to_datetime(existing["funding_time"], utc=True)
+            existing["funding_time"] = pd.to_datetime(
+                existing["funding_time"], utc=True, format="mixed"
+            )
             incoming = pd.concat((existing, incoming), ignore_index=True)
         merged = incoming.drop_duplicates(subset="funding_time", keep="last").sort_values(
             "funding_time"

@@ -13,6 +13,7 @@ O primeiro alpha é pairs trading por cointegração. A expansão deve ocorrer p
 
 - **2026-08-31 — base quant:** criado o pacote `quant_pairs`, com modelo Engle–Granger de parâmetros congelados fora da amostra e testes de regressão contra refit/look-ahead.
 - **2026-08-31 — dados públicos:** criado coletor read-only Binance USDⓈ-M para klines e funding paginados, normalizados em UTC e persistidos de forma deduplicada em `data/` (fora do Git). Validação real: BTCUSDT 1h, 7 dias, 168 candles e 21 eventos de funding; 6 testes automatizados verdes.
+- **2026-08-31 — primeiro e2e do backtester:** motor event-driven criado (fill em t+1, sizing por beta, fee, slippage, funding, stop/time stop) e validado por testes. A sonda BTCUSDT×ETHUSDT em 90d **reprovou** a formação de 30d (`p=0,400940`) e teve -4,02% líquido no diagnóstico forçado; portanto não é candidato. O CLI agora bloqueia por padrão pares com `p >= 0,05`.
 
 ## Técnicas pesquisadas e decisão
 

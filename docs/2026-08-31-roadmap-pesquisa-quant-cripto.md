@@ -9,6 +9,11 @@ O objetivo é uma mesa pessoal **market-neutral e auditável**, não um painel q
 
 O primeiro alpha é pairs trading por cointegração. A expansão deve ocorrer por camadas: primeiro retirar vieses e modelar fricção, depois adaptar o hedge e a seleção ao regime, e só então testar modelos mais complexos.
 
+## Registro de implementação
+
+- **2026-08-31 — base quant:** criado o pacote `quant_pairs`, com modelo Engle–Granger de parâmetros congelados fora da amostra e testes de regressão contra refit/look-ahead.
+- **2026-08-31 — dados públicos:** criado coletor read-only Binance USDⓈ-M para klines e funding paginados, normalizados em UTC e persistidos de forma deduplicada em `data/` (fora do Git). Validação real: BTCUSDT 1h, 7 dias, 168 candles e 21 eventos de funding; 6 testes automatizados verdes.
+
 ## Técnicas pesquisadas e decisão
 
 | Técnica | O que pode acrescentar | Decisão |

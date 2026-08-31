@@ -1,0 +1,27 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.27.1-pg17
+    container_name: quant-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: quantpairs
+      POSTGRES_USER: quantpairs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TIMESCALEDB_TELEMETRY: "off"
+      TS_TUNE_MEMORY: 3GB
+      TS_TUNE_NUM_CPUS: 1
+      TS_TUNE_MAX_CONNS: 50
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    mem_limit: 3g
+    cpus: 1.25
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantpairs -d quantpairs"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  timescaledb_data:

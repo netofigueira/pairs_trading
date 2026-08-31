@@ -1,4 +1,4 @@
-"""Collect public Binance USDⓈ-M candles and funding into the local data lake."""
+"""Collect public Binance USDⓈ-M candles and funding into local and SQL stores."""
 
 from __future__ import annotations
 
@@ -16,6 +16,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--interval", default="1h", help="Binance kline interval, default: 1h")
     parser.add_argument("--days", type=int, default=30, help="UTC lookback in days, default: 30")
     parser.add_argument("--data-root", default="data", help="local data lake root, default: data")
+    parser.add_argument(
+        "--database-url",
+        help="optional PostgreSQL/TimescaleDB URL; data is also retained in the local lake",
+    )
     arguments = parser.parse_args()
     if arguments.days <= 0:
         parser.error("--days must be positive")
@@ -36,6 +40,15 @@ def main() -> None:
 
     print(f"klines={len(klines)} path={kline_path}")
     print(f"funding_events={len(funding)} path={funding_path}")
+
+    if arguments.database_url:
+        from quant_pairs.timescale import TimescaleDataStore
+
+        store = TimescaleDataStore(arguments.database_url)
+        stored_klines = store.upsert_klines(arguments.symbol, arguments.interval, klines)
+        stored_funding = store.upsert_funding(arguments.symbol, funding)
+        print(f"timescaledb_klines={stored_klines}")
+        print(f"timescaledb_funding_events={stored_funding}")
 
 
 if __name__ == "__main__":

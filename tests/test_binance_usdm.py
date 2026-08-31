@@ -74,3 +74,20 @@ def test_funding_paginates_and_converts_numeric_fields() -> None:
 
     assert frame["funding_rate"].tolist() == [0.0001, -0.0002]
     assert frame["mark_price"].tolist() == [100.0, 101.0]
+
+
+def test_klines_exclude_a_candle_that_has_not_closed() -> None:
+    open_time = int(utc("2025-01-01T00:00:00").timestamp() * 1_000)
+    close_time = open_time + 59_999
+
+    def transport(_: str, __: dict[str, str | int]) -> list[object]:
+        return [[open_time, "1", "2", "0.5", "1.5", "10", close_time, "15", 2, "4", "6", "0"]]
+
+    frame = BinanceUSDMClient(transport=transport).klines(
+        "BTCUSDT",
+        "1m",
+        start=utc("2025-01-01T00:00:00"),
+        end=utc("2025-01-01T00:00:30"),
+    )
+
+    assert frame.empty

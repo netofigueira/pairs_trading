@@ -93,7 +93,9 @@ class BinanceUSDMClient:
         if frame.empty:
             return _empty_klines()
         frame = frame.drop_duplicates(subset="open_time", keep="last")
-        frame = frame[frame["open_time"].astype("int64") < end_ms].copy()
+        # The endpoint can include the currently open candle because its open
+        # timestamp precedes `end`. It cannot enter research or backtests.
+        frame = frame[frame["close_time"].astype("int64") <= end_ms].copy()
         return _normalise_klines(frame)
 
     def funding_rates(

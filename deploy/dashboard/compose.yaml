@@ -1,0 +1,17 @@
+services:
+  quant-dashboard:
+    build:
+      context: ../..
+      dockerfile: deploy/dashboard/Dockerfile
+    container_name: quant-dashboard
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - quant_internal
+    mem_limit: 256m
+    cpus: 0.25
+
+networks:
+  quant_internal:
+    external: true
+    name: quant_internal

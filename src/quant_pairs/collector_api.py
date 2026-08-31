@@ -20,6 +20,12 @@ class CollectRequest(BaseModel):
     symbols: list[str] = Field(default_factory=lambda: ["BTCUSDT", "ETHUSDT"])
     interval: str = "1h"
     initial_lookback_days: int = Field(default=365, ge=1, le=3650)
+    backfill_days: int | None = Field(
+        default=None,
+        ge=1,
+        le=3650,
+        description="explicit historical range; bypasses the incremental cursor",
+    )
 
 
 @app.get("/health")
@@ -39,8 +45,12 @@ def collect(
     result: dict[str, object] = {"interval": request.interval, "symbols": {}}
 
     for symbol in request.symbols:
-        start = _incremental_start(
-            store, symbol, request.interval, now, request.initial_lookback_days
+        start = (
+            now - pd.Timedelta(days=request.backfill_days)
+            if request.backfill_days is not None
+            else _incremental_start(
+                store, symbol, request.interval, now, request.initial_lookback_days
+            )
         )
         klines = client.klines(symbol, request.interval, start=start, end=now)
         funding = client.funding_rates(symbol, start=start, end=now)

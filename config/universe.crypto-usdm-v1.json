@@ -1,0 +1,28 @@
+{
+  "name": "crypto-usdm-liquid-v1",
+  "venue": "binance",
+  "market_type": "usdm_perpetual",
+  "as_of": "2026-08-31",
+  "selection": {
+    "minimum_listing_age_years": 1,
+    "exclude": ["synthetic equities", "commodities", "leveraged thematic contracts"],
+    "ranking": "24h quote volume snapshot, then minimum listing age"
+  },
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "BNBUSDT",
+    "UNIUSDT",
+    "ADAUSDT",
+    "LINKUSDT",
+    "AAVEUSDT",
+    "AVAXUSDT",
+    "BCHUSDT",
+    "TRXUSDT",
+    "LTCUSDT",
+    "DOTUSDT"
+  ]
+}

@@ -24,7 +24,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "{\"symbols\":[\"BTCUSDT\",\"ETHUSDT\"],\"interval\":\"1h\",\"initial_lookback_days\":365}",
+        "jsonBody": "{\"symbols\":[\"BTCUSDT\",\"ETHUSDT\",\"SOLUSDT\",\"XRPUSDT\",\"DOGEUSDT\",\"BNBUSDT\",\"UNIUSDT\",\"ADAUSDT\",\"LINKUSDT\",\"AAVEUSDT\",\"AVAXUSDT\",\"BCHUSDT\",\"TRXUSDT\",\"LTCUSDT\",\"DOTUSDT\"],\"interval\":\"1h\",\"initial_lookback_days\":365}",
         "options": {"timeout": 600000}
       }
     }

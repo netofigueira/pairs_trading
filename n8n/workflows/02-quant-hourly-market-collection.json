@@ -1,0 +1,32 @@
+{
+  "name": "Quant | Hourly market collection",
+  "settings": {"executionOrder": "v1"},
+  "nodes": [
+    {
+      "id": "96b0b2a5-8afb-4628-8dfb-ef035fb93001",
+      "name": "Hourly schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 1}]}}
+    },
+    {
+      "id": "96b0b2a5-8afb-4628-8dfb-ef035fb93002",
+      "name": "Collect Binance market data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://quant-collector:8000/v1/collect",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "X-Collector-Token", "value": "={{ $env.QUANT_COLLECTOR_TOKEN }}"}]},
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "{\"symbols\":[\"BTCUSDT\",\"ETHUSDT\"],\"interval\":\"1h\",\"initial_lookback_days\":365}",
+        "options": {"timeout": 600000}
+      }
+    }
+  ],
+  "connections": {"Hourly schedule": {"main": [[{"node": "Collect Binance market data", "type": "main", "index": 0}]]}}
+}

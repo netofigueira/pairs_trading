@@ -1,0 +1,22 @@
+services:
+  quant-collector:
+    build:
+      context: ../..
+      dockerfile: deploy/collector/Dockerfile
+    container_name: quant-collector
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - quant_internal
+    mem_limit: 768m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  quant_internal:
+    external: true
+    name: quant_internal

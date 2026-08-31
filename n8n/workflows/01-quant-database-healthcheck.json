@@ -1,0 +1,47 @@
+{
+  "name": "Quant | Database healthcheck",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "bbd0c763-fb3b-4c47-a97e-c0f3584bd001",
+      "name": "Manual trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {}
+    },
+    {
+      "id": "bbd0c763-fb3b-4c47-a97e-c0f3584bd002",
+      "name": "Check market data freshness",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [260, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  now() AS checked_at,\n  max(open_time) AS latest_btc_1h,\n  count(*) AS btc_1h_rows\nFROM market.candle\nWHERE venue = 'binance'\n  AND market_type = 'usdm_perpetual'\n  AND symbol = 'BTCUSDT'\n  AND interval = '1h';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "leF0dkvfqDbO2HvD",
+          "name": "TimescaleDB - market writer"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual trigger": {
+      "main": [
+        [
+          {
+            "node": "Check market data freshness",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

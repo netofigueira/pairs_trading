@@ -9,10 +9,12 @@ description = "Research and paper-trading engine for market-neutral crypto pairs
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "fastapi>=0.115",
   "numpy>=2.0",
   "pandas>=2.2",
   "psycopg[binary]>=3.2",
   "statsmodels>=0.14.5",
+  "uvicorn>=0.34",
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,10 @@
+services:
+  n8n:
+    networks:
+      - default
+      - quant_internal
+
+networks:
+  quant_internal:
+    external: true
+    name: quant_internal

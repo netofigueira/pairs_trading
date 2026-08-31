@@ -42,6 +42,20 @@ class TimescaleDataStore:
                 cursor.executemany(_CANDLE_UPSERT, records)
         return len(records)
 
+    def latest_kline_time(self, symbol: str, interval: str) -> pd.Timestamp | None:
+        with self._psycopg.connect(self._database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT max(open_time)
+                    FROM market.candle
+                    WHERE venue = %s AND market_type = %s AND symbol = %s AND interval = %s
+                    """,
+                    (self.venue, self.market_type, symbol, interval),
+                )
+                value = cursor.fetchone()[0]
+        return pd.Timestamp(value) if value is not None else None
+
     def upsert_funding(self, symbol: str, data: pd.DataFrame) -> int:
         if data.empty:
             return 0

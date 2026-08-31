@@ -3,6 +3,7 @@ FROM python:3.14-slim
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
+COPY scripts ./scripts
 RUN pip install --no-cache-dir .
 
 EXPOSE 8000

@@ -89,6 +89,32 @@ Uma arquitetura inicial saudável é: **coletor de dados → banco de candles/fe
 - Robustez a variações razoáveis de janela, threshold e custo.
 - Limites de risco e logs/reconciliação implementados.
 
+## Evidência empírica inicial — 2026-08-31
+
+Foi executada uma triagem de formação na base local de perpétuos USDM da
+Binance: 15 ativos líquidos selecionados em 2026-08-31, candles de 1 hora
+**fechados**, e 4.320 barras comuns (180 dias). As 105 combinações não
+ordenadas foram testadas por Engle–Granger aumentado; os p-values foram
+ajustados simultaneamente por Benjamini–Hochberg (FDR de 5%) e filtrados para
+meia-vida entre 4 e 72 horas.
+
+Resultado persistido em `research.formation_run`
+`842ca330-20d9-4d64-b3f8-e846c8a0118a`: **0 de 105 pares aprovados**.
+
+Isto é um resultado útil, não uma falha a contornar: não há sinal estatístico
+suficiente neste universo/período para iniciar um backtest de P&L, muito menos
+paper trading. O universo é uma fotografia de liquidez atual e, portanto, ainda
+tem viés de sobrevivência; esse resultado não é uma afirmação sobre toda a
+história da Binance.
+
+O motor de walk-forward agora reexecuta seleção FDR em cada janela de formação
+e só negocia a fatia posterior. Ele bloqueia, por construção, a agregação de
+janelas OOS sobrepostas. A configuração-base é 180 dias de formação, refit
+semanal e 7 dias OOS não sobrepostos. Antes de qualquer conclusão econômica,
+precisamos ampliar o histórico e avaliar outros universos/hipóteses previamente
+declaradas (por exemplo, clusters de setor, Johansen/ECM e hedge dinâmico),
+reservando um holdout final intocado.
+
 ## Referências
 
 - Engle & Granger (1987), [Co-integration and Error Correction: Representation, Estimation, and Testing](https://ideas.repec.org/a/ecm/emetrp/v55y1987i2p251-76.html).

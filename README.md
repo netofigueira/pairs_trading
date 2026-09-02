@@ -98,6 +98,15 @@ opcional e muito maior:
 
 O desenho e os gates de validação estão no [roadmap cripto](docs/2026-08-31-roadmap-pesquisa-quant-cripto.md).
 
+Uma cross-section intraday pode validar seleção ATM, continuidade do mesmo
+contrato e fills ask/bid. O resultado permanece explicitamente **sem hedge**
+até que `options_chain` forneça deltas observados no mesmo instante:
+
+```bash
+.venv/bin/python scripts/run_tardis_intraday.py \
+  --date 2024-01-01 --entry-time 12:00:00 --exit-time 20:00:00
+```
+
 Arquivos Parquet históricos de terceiros passam por um gate de qualidade antes
 de qualquer backtest; quotes sem os dois lados, cruzadas, expiradas ou modeladas
 não são tratadas como execução:

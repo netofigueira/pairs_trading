@@ -1,0 +1,40 @@
+{
+  "experiment_id": "conditioned-bootstrap-v1",
+  "declared_at": "2026-09-02",
+  "declared_before_results": true,
+  "question": "does the frozen gate's short side keep a positive hedged mean when the resampling null preserves the volatility regime observed at entry?",
+  "conditioning": {
+    "variable": "DVOL close last available at entry (same availability convention as the daily marks)",
+    "rule": "block start days whose previous available DVOL close lies within tolerance of the entry DVOL",
+    "tolerance_vol_points": 10.0,
+    "widening_step_vol_points": 5.0,
+    "min_eligible_starts": 100,
+    "note": "tolerance widens by the step until min_eligible_starts is met; the final tolerance per entry is recorded in the artifact"
+  },
+  "resampling": {
+    "block_size_days": 4,
+    "n_paths_per_entry": 2000,
+    "seed": 20260902,
+    "per_entry_seed_offset": "YYYYMMDD of the entry date"
+  },
+  "book": {
+    "expression": "short ATM straddle, daily delta hedge with the inverse perp, hold to expiry",
+    "entry_fill": "crossed bid (conservative floor from the Phase 2 study)",
+    "funding": "mean realized hourly rate over the cached hedge windows",
+    "margin": "standard Deribit maintenance approximation from Phase 3"
+  },
+  "evaluation": {
+    "primary": "pooled mean hedged P&L of the gate 'short' entries under the conditioned null",
+    "secondary": [
+      "pooled mean of all 22 entries and of the gate 'long' entries",
+      "per-entry means vs the unconditional Phase 3 run",
+      "Kelly and sizing grid restricted to the gate 'short' pool"
+    ],
+    "success_criterion": "gate-short pooled mean > 0 under the conditioned null; failure sends the strategy back to forecast research before any capital"
+  },
+  "frozen_inputs": {
+    "gate_decisions": "artifacts/volatility-regime-gate-v1.json (frozen rule, not refit)",
+    "entries": "artifacts/tardis-option-spread-calibration-v1.json",
+    "unconditional_reference": "artifacts/hedged-book-sizing-v1.json"
+  }
+}

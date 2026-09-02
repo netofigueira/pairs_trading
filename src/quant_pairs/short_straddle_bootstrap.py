@@ -136,9 +136,7 @@ def simulate_trade_losses(
     return entry_credit_btc - chosen_cost - entry_fees_btc
 
 
-def loss_statistics(
-    pnl: np.ndarray, *, entry_credit_btc: float
-) -> dict[str, float]:
+def loss_statistics(pnl: np.ndarray, *, entry_credit_btc: float) -> dict[str, float]:
     """Summarize a P&L sample as a conditional-loss distribution.
 
     Losses are reported as positive multiples of the entry credit.  VaR/ES are
@@ -217,3 +215,85 @@ def _daily_close(frame: pd.DataFrame) -> pd.Series:
         raise ValueError(f"frame is missing required columns: {sorted(missing)}")
     time = pd.to_datetime(frame["timestamp"], utc=True, format="mixed").dt.floor("D")
     return pd.to_numeric(frame["close"], errors="raise").groupby(time).last()
+
+
+def build_joint_history_with_levels(
+    prices: pd.DataFrame, dvol: pd.DataFrame
+) -> tuple[np.ndarray, np.ndarray]:
+    """Joint (return, DVOL change) history plus the DVOL close level per row.
+
+    Levels are in index points (e.g. 54.2) and aligned row-by-row with the
+    history array, enabling regime-conditioned block sampling.
+    """
+
+    price_daily = _daily_close(prices)
+    dvol_daily = _daily_close(dvol)
+    joint = pd.concat({"btc": price_daily, "dvol": dvol_daily}, axis=1).dropna()
+    joint = joint.sort_index()
+    joint["ret"] = joint["btc"].pct_change()
+    joint["dvol_chg"] = joint["dvol"].diff() / 100
+    joint = joint.dropna()
+    if len(joint) < 50:
+        raise ValueError("insufficient joint history for bootstrap")
+    history = joint[["ret", "dvol_chg"]].to_numpy(dtype=float)
+    levels = joint["dvol"].to_numpy(dtype=float)
+    return history, levels
+
+
+def sample_conditioned_block_paths(
+    history: np.ndarray,
+    levels: np.ndarray,
+    *,
+    entry_dvol_points: float,
+    horizon: int,
+    n_paths: int,
+    block_size: int,
+    rng: np.random.Generator,
+    tolerance_points: float = 10.0,
+    widening_step_points: float = 5.0,
+    min_starts: int = 100,
+) -> tuple[np.ndarray, dict[str, float]]:
+    """Moving-block bootstrap restricted to blocks starting in a similar regime.
+
+    A start index ``i`` is eligible when the DVOL close of the *previous* row
+    (information available before the block begins) lies within
+    ``tolerance_points`` of ``entry_dvol_points``.  Every block of every path is
+    drawn from the eligible set, so the resampled null preserves the volatility
+    regime observed at entry.  If fewer than ``min_starts`` starts qualify, the
+    tolerance widens by ``widening_step_points`` until they do; the tolerance
+    actually used is returned alongside the paths.
+    """
+
+    if horizon <= 0 or n_paths <= 0 or block_size <= 0:
+        raise ValueError("horizon, n_paths and block_size must be positive")
+    if len(levels) != len(history):
+        raise ValueError("levels must align row-by-row with history")
+    if tolerance_points <= 0 or widening_step_points <= 0 or min_starts <= 0:
+        raise ValueError("tolerance, widening step and min_starts must be positive")
+    n = len(history)
+    if block_size > n:
+        raise ValueError("block_size exceeds available history")
+    max_start = n - block_size
+    candidate_starts = np.arange(1, max_start + 1)
+    tolerance = float(tolerance_points)
+    while True:
+        eligible = candidate_starts[
+            np.abs(levels[candidate_starts - 1] - entry_dvol_points) <= tolerance
+        ]
+        if len(eligible) >= min_starts or tolerance >= levels.max() - levels.min():
+            break
+        tolerance += widening_step_points
+    if len(eligible) == 0:
+        raise ValueError("no eligible block starts even after widening")
+
+    blocks_per_path = -(-horizon // block_size)  # ceil
+    starts = rng.choice(eligible, size=(n_paths, blocks_per_path), replace=True)
+    offsets = np.arange(block_size)
+    index = starts[:, :, None] + offsets[None, None, :]
+    index = index.reshape(n_paths, blocks_per_path * block_size)[:, :horizon]
+    info = {
+        "tolerance_points_used": tolerance,
+        "eligible_starts": float(len(eligible)),
+        "entry_dvol_points": float(entry_dvol_points),
+    }
+    return history[index], info

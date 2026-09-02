@@ -6,3 +6,4 @@ __pycache__/
 data/
 .env
 deploy/timescaledb/.env
+deploy/timescaledb/quant_ingest.env

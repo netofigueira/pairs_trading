@@ -66,10 +66,11 @@ def _load_file(connection: psycopg.Connection[Any], path: Path) -> int | None:
         missing = set(_COLUMNS).difference(frame.columns)
         if missing:
             raise ValueError(f"{path} is missing columns: {sorted(missing)}")
-        frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
+        frame["timestamp"] = _timestamps(frame["timestamp"])
         rows = [_row(row) for row in frame.loc[:, _COLUMNS].itertuples(index=False, name=None)]
         cursor.execute(
-            "CREATE TEMP TABLE option_trade_stage (LIKE market.option_trade) ON COMMIT DROP"
+            "CREATE TEMP TABLE option_trade_stage "
+            "(LIKE market.option_trade INCLUDING DEFAULTS) ON COMMIT DROP"
         )
         with cursor.copy(
             "COPY option_trade_stage (traded_at, currency, trade_id, trade_seq, instrument_name, "
@@ -121,6 +122,11 @@ def _value(value: object) -> object:
     if isinstance(value, pd.Timestamp):
         return value.to_pydatetime()
     return value
+
+
+def _timestamps(values: pd.Series) -> pd.Series:
+    """Normalize CSV timestamps whose optional fractional seconds vary by row."""
+    return pd.to_datetime(values, utc=True, format="ISO8601")
 
 
 def _sha256(path: Path) -> str:

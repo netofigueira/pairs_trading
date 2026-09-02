@@ -214,3 +214,47 @@ def test_delta_neutral_book_is_flat_to_first_order() -> None:
     residual = option_step + hedge_step
     assert abs(residual) < abs(option_step)
     assert not math.isnan(residual)
+
+
+def test_basket_matches_straddle_simulation() -> None:
+    closes = [100.0, 104.0, 99.0, 103.0]
+    prices = _daily("2026-01-01 00:00", closes)
+    dvol = _daily("2026-01-01 00:00", [60.0, 62.0, 58.0, 61.0])
+    entry_at = pd.Timestamp("2026-01-02 12:00", tz="UTC")
+    expiry_at = pd.Timestamp("2026-01-07 08:00", tz="UTC")
+    common = dict(
+        entry_at=entry_at,
+        expiry_at=expiry_at,
+        contracts=0.5,
+        entry_underlying=100.0,
+        entry_forward=100.5,
+        entry_credit_btc=0.06,
+        entry_fees_btc=0.0004,
+        delivery_price=103.0,
+        funding=_flat_funding("2026-01-02 13:00", 24 * 6, 100.0),
+    )
+    marks = build_daily_straddle_marks(
+        prices,
+        dvol,
+        entry_at=entry_at,
+        expiry_at=expiry_at,
+        strike=100.0,
+        entry_underlying=100.0,
+        entry_forward=100.5,
+        entry_iv=0.60,
+        relative_half_spread=0.0,
+    )
+    from quant_pairs.delta_hedged_carry import simulate_delta_hedged_short_basket
+
+    via_marks = simulate_delta_hedged_short(marks, strike=100.0, entry_iv=0.60, **common)
+    via_basket = simulate_delta_hedged_short_basket(
+        prices,
+        dvol,
+        legs=[
+            {"type": "call", "strike": 100.0, "entry_iv": 0.60},
+            {"type": "put", "strike": 100.0, "entry_iv": 0.60},
+        ],
+        **common,
+    )
+    assert via_basket["hedged_pnl_btc"] == pytest.approx(via_marks["hedged_pnl_btc"], abs=1e-12)
+    assert via_basket["hedge_fees_btc"] == pytest.approx(via_marks["hedge_fees_btc"], abs=1e-12)

@@ -14,6 +14,7 @@ def main() -> None:
     parser.add_argument("--end", default="2024-12")
     parser.add_argument("--data-root", default="data/market/tardis")
     parser.add_argument("--include-options-chain", action="store_true")
+    parser.add_argument("--overwrite", action="store_true")
     arguments = parser.parse_args()
     months = _months(arguments.start, arguments.end)
     datasets = [("quotes", "OPTIONS"), ("quotes", "BTC-PERPETUAL")]
@@ -29,6 +30,7 @@ def main() -> None:
                     data_type=data_type,
                     date=sample_day,
                     symbol=symbol,
+                    overwrite=arguments.overwrite,
                 )
             except TardisDataError as error:
                 print(f"date={sample_day} data_type={data_type} symbol={symbol} error={error}")

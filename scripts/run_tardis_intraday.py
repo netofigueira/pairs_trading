@@ -21,6 +21,8 @@ def main() -> None:
     parser.add_argument("--min-dte", type=int, default=7)
     parser.add_argument("--max-dte", type=int, default=30)
     parser.add_argument("--contracts", type=float, default=1.0)
+    parser.add_argument("--with-options-chain", action="store_true")
+    parser.add_argument("--perp-taker-fee-rate", type=float, default=0.0005)
     arguments = parser.parse_args()
     root = Path(arguments.data_root) / "deribit" / "quotes" / arguments.date
     result = run_intraday_straddle(
@@ -32,6 +34,16 @@ def main() -> None:
         min_dte=arguments.min_dte,
         max_dte=arguments.max_dte,
         contracts=arguments.contracts,
+        options_chain_path=(
+            Path(arguments.data_root)
+            / "deribit"
+            / "options_chain"
+            / arguments.date
+            / "OPTIONS.csv.gz"
+            if arguments.with_options_chain
+            else None
+        ),
+        perp_taker_fee_rate=arguments.perp_taker_fee_rate,
     )
     print(json.dumps(result, indent=2))
 

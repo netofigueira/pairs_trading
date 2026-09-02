@@ -33,11 +33,14 @@ def download_dataset(
     data_type: str,
     date: str,
     symbol: str,
+    overwrite: bool = False,
 ) -> Path:
     """Download one dataset atomically without credentials or shell commands."""
 
     url = dataset_url(exchange, data_type, date, symbol)
     target = Path(destination_root) / exchange / data_type / date / f"{symbol}.csv.gz"
+    if target.is_file() and target.stat().st_size > 0 and not overwrite:
+        return target
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(".tmp")
     try:

@@ -43,7 +43,9 @@ def reconstruct_top_of_book(
         if missing:
             raise ValueError(f"Tardis quote file is missing columns: {sorted(missing)}")
         if cutoff_us is not None:
-            chunk = chunk.loc[chunk["timestamp"] <= cutoff_us]
+            # Availability is determined by capture time. An exchange event
+            # timestamped before the decision but received later cannot leak in.
+            chunk = chunk.loc[chunk["local_timestamp"] <= cutoff_us]
             if chunk.empty:
                 continue
         latest["events"] = _latest_per_symbol(

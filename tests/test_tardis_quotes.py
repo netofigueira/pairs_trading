@@ -86,3 +86,27 @@ def test_reconstruction_rejects_a_missing_book_side(tmp_path) -> None:
     ).to_csv(path, index=False, compression="gzip")
 
     assert reconstruct_top_of_book(path).empty
+
+
+def test_as_of_excludes_an_exchange_event_captured_after_decision(tmp_path) -> None:
+    path = tmp_path / "quotes.csv.gz"
+    pd.DataFrame(
+        {
+            "exchange": ["deribit", "deribit"],
+            "symbol": ["BTC-PERPETUAL", "BTC-PERPETUAL"],
+            "timestamp": [1_000_000, 1_900_000],
+            "local_timestamp": [1_100_000, 2_100_000],
+            "ask_amount": [2.0, 2.0],
+            "ask_price": [100.0, 200.0],
+            "bid_price": [99.0, 199.0],
+            "bid_amount": [3.0, 3.0],
+        }
+    ).to_csv(path, index=False, compression="gzip")
+
+    books = reconstruct_top_of_book(
+        path,
+        as_of=pd.Timestamp("1970-01-01T00:00:02Z"),
+        max_age=pd.Timedelta(seconds=2),
+    )
+
+    assert books.loc[0, "ask_price"] == 100.0

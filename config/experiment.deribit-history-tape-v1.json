@@ -1,0 +1,30 @@
+{
+  "experiment_id": "deribit-history-tape-v1",
+  "declared_at": "2026-09-02",
+  "purpose": "collect public option-trade prints near the daily decision time as an observed execution-price reference",
+  "sample": {
+    "currency": "BTC",
+    "start_date": "2021-04-01",
+    "end_date": "2026-08-18",
+    "center_time_utc": "12:00:00",
+    "half_window_minutes": 120
+  },
+  "source": {
+    "host": "https://history.deribit.com/api/v2",
+    "endpoint": "/public/get_last_trades_by_currency_and_time",
+    "kind": "option",
+    "pagination": "recursively bisect a time range when has_more is true; deduplicate only by trade_id"
+  },
+  "selection_contract": {
+    "target_dte_days": 14,
+    "minimum_dte_days": 7,
+    "maximum_dte_days": 30,
+    "moneyness": "nearest strike to the contemporaneous index price, requiring at least one call and put print",
+    "price_reference": "observed trade price; directional fill scenarios apply the independently calibrated Tardis half-spread"
+  },
+  "interpretation_limits": [
+    "a third-party print is an observed executed price, not a guarantee that our order could fill at that price or size",
+    "the tape does not expose contemporaneous bid/ask depth or queue position",
+    "missing call or put prints inside the frozen window are coverage failures and are not interpolated"
+  ]
+}

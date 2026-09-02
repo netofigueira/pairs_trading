@@ -63,9 +63,10 @@ do book histórico executável.
 
 ## Limites que permanecem
 
-- Não há histórico diário de book de opções no repositório; os arquivos locais
-  Tardis cobrem apenas 26 dias trimestrais. Logo esta rodada não prova execução
-  nem skill do forecast.
+- Não há histórico diário de **book** de opções no repositório; os arquivos
+  locais Tardis cobrem apenas 26 dias trimestrais. O tape público histórico já
+  tem um coletor separado, mas ainda precisa de backfill e seleção de straddle.
+  Logo esta rodada não prova execução nem skill do forecast.
 - DVOL representa 30 dias, não a IV bid de um straddle de 14 DTE.
 - O spot é proxy de forward; funding é constante; margem é aproximação padrão
   e uma violação é reportada, não liquidada pela regra da exchange.

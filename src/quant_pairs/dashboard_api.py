@@ -85,6 +85,22 @@ def volatility_forecast() -> dict[str, object]:
         raise HTTPException(status_code=503, detail=f"volatility forecast unavailable: {error}") from error
 
 
+@app.get("/api/v1/volatility/regime-gate")
+def volatility_regime_gate() -> dict[str, object]:
+    path = Path(
+        os.environ.get(
+            "QUANT_PAIRS_VOLATILITY_REGIME_GATE",
+            "artifacts/volatility-regime-gate-v1.json",
+        )
+    )
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise HTTPException(
+            status_code=503, detail=f"volatility regime gate unavailable: {error}"
+        ) from error
+
+
 def _rows(query: str, parameters: tuple[object, ...] = ()) -> list[dict[str, object]]:
     with psycopg.connect(_database_url()) as connection:
         with connection.cursor() as cursor:

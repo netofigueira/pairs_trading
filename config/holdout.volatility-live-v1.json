@@ -1,0 +1,24 @@
+{
+  "holdout_id": "volatility-live-v1",
+  "sealed_at": "2026-09-02T23:59:59-03:00",
+  "starts_at": "2026-09-03T00:00:00-03:00",
+  "timezone": "America/Sao_Paulo",
+  "status": "sealed",
+  "scope": [
+    "daily BTC realized-volatility forecasts",
+    "long/short/flat decisions from executable option bid/ask IV",
+    "subsequent option outcomes"
+  ],
+  "policy": {
+    "parameter_selection": "forbidden",
+    "threshold_selection": "forbidden",
+    "model_comparison": "monitor only; no retrospective replacement",
+    "allowed_use": "append-only reporting against the frozen v1 specification"
+  },
+  "frozen_rule": {
+    "forecast": "causally bias-corrected GARCH(1,1) 14-day variance",
+    "long": "forecast variance > mean executable ask-IV variance",
+    "short": "forecast variance < mean executable bid-IV variance",
+    "flat": "forecast variance inside the executable IV spread"
+  }
+}

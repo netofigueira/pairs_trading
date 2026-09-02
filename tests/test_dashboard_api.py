@@ -18,6 +18,7 @@ def test_volatility_page_is_self_contained() -> None:
     assert "<svg" in page
     assert "cdn." not in page
     assert "Forecast diário" in page
+    assert "Gate long / short / flat congelado" in page
 
 
 def test_volatility_forecast_endpoint_loads_configured_artifact(tmp_path, monkeypatch) -> None:
@@ -26,3 +27,11 @@ def test_volatility_forecast_endpoint_loads_configured_artifact(tmp_path, monkey
     monkeypatch.setenv("QUANT_PAIRS_VOLATILITY_FORECAST", str(path))
 
     assert "30" in dashboard_api.volatility_forecast()["horizons"]
+
+
+def test_volatility_regime_gate_loads_configured_artifact(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "gate.json"
+    path.write_text(json.dumps({"schema_version": 1, "decision": "do_not_promote"}))
+    monkeypatch.setenv("QUANT_PAIRS_VOLATILITY_REGIME_GATE", str(path))
+
+    assert dashboard_api.volatility_regime_gate()["decision"] == "do_not_promote"

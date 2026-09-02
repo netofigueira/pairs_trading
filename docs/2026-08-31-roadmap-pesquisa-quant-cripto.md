@@ -429,12 +429,19 @@ intraday e custos usando dados reais antes de comprar cobertura contínua.
 O primeiro round-trip intraday foi executado na cross-section de 2024-01-01,
 entre 12:00 e 20:00 UTC. A seleção observável escolheu
 BTC-12JAN24-43000-C/P (10,83 DTE), comprou ambos no ask e encerrou os mesmos
-contratos no bid. Por straddle, o movimento mid-to-mid foi +0,0045 BTC, o custo
-de cruzar os spreads foi 0,0050 BTC e as quatro fees de opção somaram 0,0012
-BTC, levando o resultado executável sem hedge a -0,0017 BTC. Isso valida
-sincronização, seleção, continuidade e contabilidade, mas não mede performance:
-é uma única data e o campo de P&L delta-hedged permanece nulo até a integração
-do `options_chain` observado.
+contratos no bid. O `options_chain` real (1,87 GB comprimidos) forneceu deltas
+de +0,53343 e -0,46657 na entrada. A exposição líquida de +0,06686 BTC foi
+neutralizada com -286 contratos do BTC-PERPETUAL, deixando -0,00010 BTC de
+residual por arredondamento. O corte as-of usa o timestamp de captura local,
+portanto não aceita mensagens recebidas depois do instante de decisão.
+
+Por straddle, opções+hedge tiveram movimento mid-to-mid de +0,003181 BTC,
+custo de spread de 0,005001 BTC e fees de 0,001266 BTC. O líquido antes de
+funding foi -0,003086 BTC. Como a janela de oito horas exige contabilidade de
+funding do perp, o campo de líquido delta-hedged final continua nulo. Isso
+valida sincronização, seleção, continuidade, hedge inverso e custos, mas não
+mede performance: é uma única data, e uma cross-section intraday não testa o
+carry da opção até o vencimento.
 
 Também foi avaliada uma alternativa P1a gratuita: usar o endpoint público
 `get_mark_price_history` da própria Deribit como proxy, junto do perp para o

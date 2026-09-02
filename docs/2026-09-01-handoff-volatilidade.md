@@ -1,7 +1,7 @@
 # Handoff — pesquisa de volatilidade cripto
 
 Data: 2026-09-01  
-Commit-base: `dd11d9b Add crypto volatility research foundation`  
+Commit-base: `df557f1 Add observed-delta hedge to Tardis gate`
 Estado: P0 concluída; P1 de infraestrutura em andamento; nada aprovado para dinheiro real.
 
 ## Onde paramos
@@ -40,17 +40,24 @@ Comandos:
 - Já baixado localmente (ignorado pelo Git):
   - opções Deribit de 2024-01-01: 133 MB;
   - quotes BTC-PERPETUAL de 2024-01-01: 8,2 MB.
+  - options_chain Deribit de 2024-01-01: 1,87 GB.
 - O reconstrutor de quote incremental funciona e exige bid, ask e tamanho nos
   dois lados, sem cruzamento e com frescor máximo configurável por campo. Uma
   atualização recente do ask não mascara um bid antigo.
 - Evidência no snapshot de opções de 2024-01-01: 1.316 books completos; 948
   com atualização nos últimos 5 minutos do dia. Spread relativo mediano de
   717,5 bps, reforçando que mark não deve ser usado como fill.
-- O runner intraday ask/bid foi validado em 2024-01-01, 12:00--20:00 UTC. Ele
-  selecionou o straddle BTC-12JAN24-43000, manteve os mesmos contratos na saída
-  e encontrou P&L mid bruto de 0,0045 BTC, custo de spread de 0,0050 BTC e P&L
-  executável após fees de -0,0017 BTC por straddle. É somente uma observação de
-  plumbing, sem hedge e sem significado estatístico.
+- O runner intraday ask/bid e delta-hedged foi validado em 2024-01-01,
+  12:00--20:00 UTC. Ele selecionou o straddle BTC-12JAN24-43000, manteve os
+  mesmos contratos na saída e leu deltas de exchange de +0,53343/-0,46657.
+  A exposição de +0,06686 BTC foi coberta com -286 contratos do perp; residual
+  de -0,00010 BTC.
+- Resultado por straddle: P&L mid conjunto de +0,003181 BTC, spread conjunto
+  de 0,005001 BTC e fees de opções+perp de 0,001266 BTC; líquido **antes de
+  funding** de -0,003086 BTC. O líquido final permanece nulo no artefato até
+  integrar funding. É uma observação de plumbing, sem significado estatístico.
+- O corte as-of usa `local_timestamp` (horário de captura), impedindo que uma
+  mensagem da exchange recebida depois da decisão entre retrospectivamente.
 
 Comandos:
 
@@ -60,18 +67,21 @@ Comandos:
   data/market/tardis/deribit/quotes/2024-01-01/OPTIONS.csv.gz \
   --max-age-seconds 300
 .venv/bin/python scripts/run_tardis_intraday.py \
-  --date 2024-01-01 --entry-time 12:00:00 --exit-time 20:00:00
+  --date 2024-01-01 --entry-time 12:00:00 --exit-time 20:00:00 \
+  --with-options-chain
 ```
 
 ## Próximo passo exato
 
-Completar o hedge do runner de plumbing intraday para uma cross-section mensal Tardis:
+Completar a contabilidade e tornar a amostra mensal eficiente:
 
-1. Baixar/processar `options_chain` da
-   Tardis ou outra fonte de Greeks no mesmo instante; não inventar delta.
-2. Ligar o delta observado das duas pernas na entrada ao hedge no
-   BTC-PERPETUAL, com lado executável, tamanho e fee explícitos.
-3. Reportar separadamente P&L das opções, P&L do hedge, spreads, fees e líquido.
+1. Integrar funding histórico do BTC-PERPETUAL no intervalo; até isso, não
+   preencher `net_delta_hedged_pnl_btc`.
+2. Extrair/cachear somente Greeks necessários do `options_chain` de 1,87 GB,
+   evitando redescompactar metade do dia a cada cenário.
+3. Rodar múltiplas janelas intraday pré-declaradas nos primeiros dias mensais
+   gratuitos e medir cobertura/falhas, sem tratar as observações como backtest
+   de carry de 7--30 dias.
 
 Este runner é apenas validação de dados e execução intraday. As amostras
 mensais não permitem avaliar carregar opções por 7--30 dias. Um backtest
@@ -83,8 +93,8 @@ contínuo requer quotes históricos pagos ou coleta própria acumulada.
 - `src/quant_pairs/tardis.py`: downloader dos CSVs Tardis.
 - `src/quant_pairs/tardis_quotes.py`: reconstrução top-of-book por updates.
 - `src/quant_pairs/tardis_options.py`: parser de contrato e seleção ATM.
-- `src/quant_pairs/tardis_intraday.py`: round-trip intraday executável, ainda
-  explicitamente sem hedge delta.
+- `src/quant_pairs/tardis_intraday.py`: round-trip intraday executável com
+  delta observado, hedge inverso no perp e líquido final bloqueado sem funding.
 - `scripts/run_tardis_intraday.py`: CLI do gate intraday.
 - `scripts/inspect_tardis_quotes.py`: auditor de livros executáveis.
 - `docs/2026-08-31-roadmap-pesquisa-quant-cripto.md`: diário completo e

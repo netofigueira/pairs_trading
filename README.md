@@ -35,6 +35,14 @@ O coletor pode gravar no banco, além do data lake local:
 
 O desenho da futura interface está em [docs/2026-08-31-plataforma-operacional.md](docs/2026-08-31-plataforma-operacional.md). A interface é inicialmente de pesquisa e paper trading; ela não envia ordens.
 
+O painel privado possui uma página de pesquisa de volatilidade em
+`/volatility`. Ela lê somente um artefato compacto e versionado, regenerado por:
+
+```bash
+.venv/bin/python scripts/build_volatility_report.py
+.venv/bin/uvicorn quant_pairs.dashboard_api:app --reload
+```
+
 ## Experimento intraday declarado
 
 O experimento inicial em candles fechados de 1h está em

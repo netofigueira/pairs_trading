@@ -1,7 +1,7 @@
 # Handoff — pesquisa de volatilidade cripto
 
 Data: 2026-09-01  
-Commit-base: `fa8ee71 Add quarterly Tardis pilot sampling`
+Commit-base: `70f8a6c Build compact volatility research report`
 Estado: P0 concluída; P1 de infraestrutura em andamento; nada aprovado para dinheiro real.
 
 ## Onde paramos
@@ -115,6 +115,13 @@ recuperou as quatro falhas de tamanho; nas 26 observações, 8 foram positivas e
 o retorno mediano foi -12,68%. A compra sistemática de straddle foi reprovada
 como estratégia standalone neste gate.
 
+O relatório compacto `artifacts/volatility-research-v1.json` reúne 66 janelas
+independentes IV--RV, 1.958 pontos diários de contexto e 26 observações do
+carry em 422 KB. A rota `/volatility` do dashboard renderiza KPIs, scatter de
+calibração, VRP em variância, barras do carry e cobertura sem consultar os
+arquivos brutos. A API é `/api/v1/volatility/research`; ambos funcionam sem
+conexão com o TimescaleDB.
+
 Próximas ações:
 
 1. Não baixar `options_chain` para todos os trimestres enquanto não houver uma
@@ -144,6 +151,9 @@ continua exigindo dados pagos ou coleta própria.
 - `src/quant_pairs/tardis_carry.py`: carry até o vencimento (sem hedge e
   hedge estático).
 - `scripts/run_tardis_carry.py`: CLI do gate de carry mensal.
+- `src/quant_pairs/volatility_report.py`: payload compacto para visualização.
+- `scripts/build_volatility_report.py`: regenera o artefato do dashboard.
+- `src/quant_pairs/static/volatility.html`: página autocontida de pesquisa.
 - `docs/2026-09-01-piloto-carry-trimestral.md`: desenho, resultado e decisão do
   gate trimestral long-only.
 - `scripts/run_tardis_intraday.py`: CLI do gate intraday.

@@ -30,6 +30,21 @@ O banco separa os domínios `market`, `research` e `execution`. A tabela `execut
 4. Backtests reproduzíveis: parâmetros, intervalo, versão do código, métricas e lista de trades.
 5. Paper blotter: sinais, posições virtuais, P&L realizado/não realizado e limites de risco.
 
+### Primeira visão de pesquisa entregue
+
+A rota `/volatility` é independente do banco operacional e consome o artefato
+versionado `artifacts/volatility-research-v1.json` (cerca de 422 KB). Ela não lê
+os 6,7 GB de quotes brutos no acesso e contém:
+
+- KPIs das janelas independentes e da cobertura do carry;
+- scatter IV/DVOL contra RV futura, com diagonal de calibração;
+- série contextual de `IV² - RV²`;
+- retornos trimestrais do long straddle carregado ao vencimento;
+- cobertura de tamanho e alertas explícitos sobre interpretação.
+
+Os gráficos usam SVG e JavaScript locais, sem dependência de CDN. A API de
+leitura correspondente é `/api/v1/volatility/research`.
+
 ## Tecnologia e fronteiras
 
 O próximo serviço será uma API Python de leitura sobre o pacote `quant_pairs` e TimescaleDB; o frontend poderá iniciar com Plotly para velocidade, mas com API separada para permitir uma UI web mais completa depois. n8n entra para alertas, agendas de coleta e notificações — não para calcular sinais críticos ou executar ordens.

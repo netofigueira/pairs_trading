@@ -3,9 +3,12 @@ import pandas as pd
 import pytest
 
 from quant_pairs.volatility_forecast import (
+    add_expanding_bias_correction,
     attach_dvol,
     build_forecast_panel,
+    correct_current_forecast,
     current_forecast,
+    diebold_mariano,
     forecast_metrics,
     non_overlapping_forecasts,
 )
@@ -92,3 +95,30 @@ def test_current_forecast_uses_latest_close_without_future_label() -> None:
     assert result.iloc[0]["forecast_at"] == expected_at
     assert "target_rv" not in result.columns
     assert result.iloc[0]["garch_rv"] > 0
+
+
+def test_bias_correction_waits_for_completed_targets() -> None:
+    panel = build_forecast_panel(_prices(140), horizon_days=5, min_train_days=50, rolling_window=20)
+    corrected = add_expanding_bias_correction(panel, minimum_completed=3)
+
+    assert pd.isna(corrected.iloc[2]["garch_corrected_variance"])
+    first = corrected["garch_corrected_variance"].first_valid_index()
+    assert first is not None
+    completed = corrected.loc[: first - 1]
+    completed = completed.loc[completed["target_end"] <= corrected.loc[first, "forecast_at"]]
+    expected_scale = completed["target_variance"].sum() / completed["garch_variance"].sum()
+    expected_scale = min(max(expected_scale, 0.5), 1.5)
+    assert corrected.loc[first, "garch_bias_scale"] == pytest.approx(expected_scale)
+
+
+def test_current_correction_and_dm_expose_uncertainty() -> None:
+    panel = build_forecast_panel(_prices(160), horizon_days=5, min_train_days=50, rolling_window=20)
+    current = current_forecast(_prices(160), horizon_days=5, rolling_window=20)
+    corrected_current = correct_current_forecast(current, panel, minimum_completed=5)
+    corrected = add_expanding_bias_correction(panel, minimum_completed=5).dropna()
+    comparison = diebold_mariano(corrected, model="garch_corrected", benchmark="rolling_corrected")
+
+    assert corrected_current.iloc[0]["garch_corrected_rv"] > 0
+    assert comparison["ci_low"] <= comparison["mean_qlike_difference"]
+    assert comparison["ci_high"] >= comparison["mean_qlike_difference"]
+    assert 0 <= comparison["p_value_two_sided"] <= 1

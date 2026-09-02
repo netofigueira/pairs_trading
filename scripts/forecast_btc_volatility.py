@@ -9,9 +9,12 @@ from pathlib import Path
 import pandas as pd
 
 from quant_pairs.volatility_forecast import (
+    add_expanding_bias_correction,
     attach_dvol,
     build_forecast_panel,
+    correct_current_forecast,
     current_forecast,
+    diebold_mariano,
     forecast_metrics,
     non_overlapping_forecasts,
 )
@@ -34,30 +37,54 @@ def main() -> None:
     horizons = arguments.horizon or [14, 30]
     reports = {}
     for horizon in horizons:
-        panel = attach_dvol(
-            build_forecast_panel(
-                prices,
-                horizon_days=horizon,
-                min_train_days=arguments.min_train_days,
-                rolling_window=arguments.rolling_window,
-                ewma_lambda=arguments.ewma_lambda,
-                garch_refit_days=arguments.garch_refit_days,
-            ),
-            dvol,
-        ).dropna(subset=["dvol"])
+        raw_panel = build_forecast_panel(
+            prices,
+            horizon_days=horizon,
+            min_train_days=arguments.min_train_days,
+            rolling_window=arguments.rolling_window,
+            ewma_lambda=arguments.ewma_lambda,
+            garch_refit_days=arguments.garch_refit_days,
+        )
+        panel = attach_dvol(add_expanding_bias_correction(raw_panel), dvol).dropna(subset=["dvol"])
         independent = non_overlapping_forecasts(panel)
+        corrected_names = tuple(f"{name}_corrected" for name in ("rolling", "ewma", "garch"))
+        corrected_daily = panel.dropna(subset=[f"{name}_variance" for name in corrected_names])
+        corrected_independent = independent.dropna(
+            subset=[f"{name}_variance" for name in corrected_names]
+        )
         current = attach_dvol(
-            current_forecast(
-                prices,
-                horizon_days=horizon,
-                rolling_window=arguments.rolling_window,
-                ewma_lambda=arguments.ewma_lambda,
+            correct_current_forecast(
+                current_forecast(
+                    prices,
+                    horizon_days=horizon,
+                    rolling_window=arguments.rolling_window,
+                    ewma_lambda=arguments.ewma_lambda,
+                ),
+                raw_panel,
             ),
             dvol,
         )
         reports[str(horizon)] = {
             "daily_metrics": forecast_metrics(panel),
             "independent_metrics": forecast_metrics(independent),
+            "corrected_daily_metrics": forecast_metrics(
+                corrected_daily, model_names=corrected_names
+            ),
+            "corrected_independent_metrics": forecast_metrics(
+                corrected_independent, model_names=corrected_names
+            ),
+            "dm_raw_independent": [
+                diebold_mariano(independent, model="garch", benchmark=benchmark)
+                for benchmark in ("rolling", "ewma")
+            ],
+            "dm_independent": [
+                diebold_mariano(
+                    corrected_independent,
+                    model="garch_corrected",
+                    benchmark=f"{benchmark}_corrected",
+                )
+                for benchmark in ("rolling", "ewma")
+            ],
             "current": _point(current.iloc[-1]),
             "latest_evaluated": _point(panel.iloc[-1]),
             "daily": [_point(row) for _, row in panel.iterrows()],
@@ -91,9 +118,18 @@ def _point(row: pd.Series) -> dict[str, object]:
         "rolling_rv",
         "ewma_rv",
         "garch_rv",
+        "rolling_corrected_rv",
+        "ewma_corrected_rv",
+        "garch_corrected_rv",
+        "rolling_bias_scale",
+        "ewma_bias_scale",
+        "garch_bias_scale",
         "dvol_minus_rolling_variance",
         "dvol_minus_ewma_variance",
         "dvol_minus_garch_variance",
+        "dvol_minus_rolling_corrected_variance",
+        "dvol_minus_ewma_corrected_variance",
+        "dvol_minus_garch_corrected_variance",
     ]
     return {
         key: (str(row[key]) if key in {"forecast_at", "target_end"} else float(row[key]))

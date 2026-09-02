@@ -10,15 +10,25 @@
     "ewma": {"lambda": 0.94},
     "garch": {"order": [1, 1], "mean": "zero", "refit_days": 30}
   },
+  "bias_correction": {
+    "method": "expanding ratio of completed target variance to forecast variance",
+    "minimum_completed_targets": 30,
+    "scale_bounds": [0.5, 1.5],
+    "causality": "only targets with target_end <= forecast_at"
+  },
   "evaluation": {
     "primary": ["qlike", "mse_variance"],
     "diagnostic": ["rv_correlation", "mean_forecast_rv"],
     "report_daily_overlapping": true,
-    "report_non_overlapping": true
+    "report_non_overlapping": true,
+    "model_comparison": "Diebold-Mariano on non-overlapping QLIKE loss differentials with Student-t inference"
   },
   "signal_policy": {
-    "states": ["long_vol_candidate", "short_vol_candidate", "flat"],
-    "status": "diagnostic_only",
-    "reason": "execution thresholds, normal VRP and option bid/ask validation are not calibrated"
+    "states": ["long", "short", "flat"],
+    "status": "frozen_research_gate",
+    "long": "corrected GARCH variance > mean ask-IV variance",
+    "short": "corrected GARCH variance < mean bid-IV variance",
+    "flat": "forecast variance inside bid/ask IV boundaries",
+    "fitted_threshold": false
   }
 }

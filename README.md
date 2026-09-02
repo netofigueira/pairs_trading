@@ -125,6 +125,16 @@ O envelope diário de saída antecipada é regenerado por:
 Ele usa entrada vendida no bid observado e recompra no ask sintético. O
 resultado é diagnóstico de viabilidade e não inclui margem ou liquidação.
 
+A distribuição condicional de perda reamostra conjuntamente retorno do BTC e
+mudança do DVOL em blocos, sem adicionar gaps à trajetória histórica:
+
+```bash
+.venv/bin/python scripts/run_short_straddle_bootstrap.py
+```
+
+O resultado não é probabilidade de ruína, pois ainda não inclui capital,
+sizing, margem ou liquidação. Veja a [metodologia do bootstrap](docs/2026-09-02-bootstrap-distribuicao-perda.md).
+
 Uma cross-section intraday pode validar seleção ATM, continuidade do mesmo
 contrato e fills ask/bid. Com `options_chain`, o runner usa deltas observados
 no mesmo instante para neutralizar a entrada com BTC-PERPETUAL. O líquido final

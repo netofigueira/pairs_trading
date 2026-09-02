@@ -14,6 +14,7 @@ dependencies = [
   "pandas>=2.2",
   "pyarrow>=17",
   "psycopg[binary]>=3.2",
+  "scipy>=1.14",
   "statsmodels>=0.14.5",
   "uvicorn>=0.34",
 ]

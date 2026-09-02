@@ -160,6 +160,24 @@ Próximas ações:
 
 Desenho e limitações: `docs/2026-09-02-backfill-opcoes-sintetico.md`.
 
+### P1.7 — distribuição de perda por block bootstrap
+
+- Moving-block bootstrap conjunto de retorno BTC e variação do DVOL, com
+  blocos de quatro dias, 10.000 trajetórias por cada uma das 22 entradas e
+  spreads P50/P90/P95.
+- A seed agora usa offset determinístico `YYYYMMDD`; duas execuções em processos
+  separados produziram artefatos byte a byte idênticos.
+- No P50, todas as regras tiveram retorno médio negativo. Hold: -14,31%,
+  P(perda) 43,78%, P(perda >2x crédito) 5,86% e ES99 5,12x. A menor média
+  negativa foi TP50/stop 1,5x/7 DTE: -8,88%, com ES99 2,02x.
+- Stops reduzem a cauda, mas não tornam a expectativa positiva. Isso enfraquece
+  materialmente a hipótese nesta configuração, sem ser probabilidade de ruína
+  nem validação fora da amostra.
+- Próximo gate, se a trilha continuar: margem/liquidação, capital, sizing e
+  sequência de trades. Não criar novas regras de saída sobre estes resultados.
+
+Metodologia: `docs/2026-09-02-bootstrap-distribuicao-perda.md`.
+
 O carry até o vencimento contorna a falta de quotes contínuos de opções: só a
 entrada exige book executável (Tardis gratuito no dia 1 de cada mês); payoff,
 hedge e funding vêm de APIs públicas. Rebalancear o hedge no meio do caminho
@@ -190,6 +208,10 @@ continua exigindo dados pagos ou coleta própria.
   avaliação das regras de recompra.
 - `scripts/run_synthetic_option_backfill.py`: executa o envelope de 144
   combinações agregadas.
+- `src/quant_pairs/short_straddle_bootstrap.py`: bootstrap conjunto e
+  distribuição condicional de perda.
+- `scripts/run_short_straddle_bootstrap.py`: reproduz 10.000 trajetórias por
+  entrada com seed estável.
 - `src/quant_pairs/static/volatility.html`: página autocontida de pesquisa.
 - `docs/2026-09-01-piloto-carry-trimestral.md`: desenho, resultado e decisão do
   gate trimestral long-only.

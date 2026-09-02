@@ -106,6 +106,16 @@ opcional e muito maior:
 
 O desenho e os gates de validação estão no [roadmap cripto](docs/2026-08-31-roadmap-pesquisa-quant-cripto.md).
 
+A base do backfill de saídas usa Black-76 inverso e calibra cenários de spread
+nos books trimestrais observados. Quotes modelados permanecem rotulados e não
+são confundidos com execução real:
+
+```bash
+.venv/bin/python scripts/calibrate_tardis_option_spreads.py
+```
+
+Metodologia, percentis e limitações: [backfill sintético V1](docs/2026-09-02-backfill-opcoes-sintetico.md).
+
 Uma cross-section intraday pode validar seleção ATM, continuidade do mesmo
 contrato e fills ask/bid. Com `options_chain`, o runner usa deltas observados
 no mesmo instante para neutralizar a entrada com BTC-PERPETUAL. O líquido final

@@ -1,7 +1,7 @@
 # Handoff — pesquisa de volatilidade cripto
 
-Data: 2026-09-01  
-Commit-base: `70f8a6c Build compact volatility research report`
+Data: 2026-09-02
+Commit-base: `69727b7 Add volatility research dashboard`
 Estado: P0 concluída; P1 de infraestrutura em andamento; nada aprovado para dinheiro real.
 
 ## Onde paramos
@@ -131,6 +131,24 @@ Próximas ações:
 3. Não inverter mecanicamente o resultado para short-vol: qualquer experimento
    vendido precisa modelar margem, liquidação e cauda antes de ser declarado.
 
+### P1.6 — base do backfill teórico de saídas
+
+- Implementado Black-76 inverso, em BTC, com valor intrínseco e inversão de IV
+  por bisseção.
+- O controle de 2024-01-01 rejeitou o perp como substituto direto do forward:
+  ele gerava IV de aproximadamente 74% na call e 60% na put. Pela paridade
+  call--put, ambas passaram a 67,04%.
+- Calibração de 52 pernas ATM nas 26 datas trimestrais, sem falhas de inversão:
+  half-spread mediano de 1,62% do prêmio; P75 de 1,95%; P90 de 2,75%; P95 de
+  3,61%. Largura bid-IV--ask-IV P95 de 4,04 pontos de vol.
+- O artefato compacto versionado é
+  `artifacts/tardis-option-spread-calibration-v1.json`.
+- O próximo passo é o painel diário de marcação sintética com DVOL, cenários de
+  basis e recompra de posições vendidas no ask sintético. O resultado será
+  declarado como envelope de viabilidade, não backtest executável.
+
+Desenho e limitações: `docs/2026-09-02-backfill-opcoes-sintetico.md`.
+
 O carry até o vencimento contorna a falta de quotes contínuos de opções: só a
 entrada exige book executável (Tardis gratuito no dia 1 de cada mês); payoff,
 hedge e funding vêm de APIs públicas. Rebalancear o hedge no meio do caminho
@@ -139,6 +157,8 @@ continua exigindo dados pagos ou coleta própria.
 ## Arquivos relevantes
 
 - `src/quant_pairs/dvol.py`: P0 DVOL × RV sem leakage.
+- `src/quant_pairs/inverse_options.py`: Black-76 inverso, IV implícita e quote
+  sintético rotulado.
 - `src/quant_pairs/tardis.py`: downloader dos CSVs Tardis.
 - `src/quant_pairs/tardis_quotes.py`: reconstrução top-of-book por updates.
 - `src/quant_pairs/tardis_options.py`: parser de contrato e seleção com regra
@@ -153,6 +173,8 @@ continua exigindo dados pagos ou coleta própria.
 - `scripts/run_tardis_carry.py`: CLI do gate de carry mensal.
 - `src/quant_pairs/volatility_report.py`: payload compacto para visualização.
 - `scripts/build_volatility_report.py`: regenera o artefato do dashboard.
+- `scripts/calibrate_tardis_option_spreads.py`: calibra spread e largura de IV
+  nos ATM trimestrais observados.
 - `src/quant_pairs/static/volatility.html`: página autocontida de pesquisa.
 - `docs/2026-09-01-piloto-carry-trimestral.md`: desenho, resultado e decisão do
   gate trimestral long-only.

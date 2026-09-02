@@ -1,0 +1,28 @@
+{
+  "experiment_id": "synthetic-option-backfill-v1",
+  "declared_at": "2026-09-02",
+  "purpose": "Feasibility envelope for early exits when historical option books are absent",
+  "pricing": {
+    "model": "Deribit inverse Black-76",
+    "currency": "BTC",
+    "forward_calibration": "inverse put-call parity from paired observed mids",
+    "forward_backfill_v1": "BTC-PERPETUAL plus explicit dated-basis scenario",
+    "year_basis_days": 365,
+    "volatility_anchor": "DVOL, adjusted by remaining tenor and explicit stress"
+  },
+  "execution": {
+    "quote_source_label": "synthetic_model",
+    "spread_basis": "fraction of theoretical option premium, never fraction of BTC spot",
+    "calibration_percentiles": [50, 75, 90, 95],
+    "short_exit_side": "synthetic ask",
+    "include_fees": true,
+    "include_slippage": true
+  },
+  "volatility_stress_absolute_points": [0, 5, 10, 15],
+  "gates": [
+    "report a result envelope across spread and volatility scenarios",
+    "reject rules that work only in the central scenario",
+    "never mix synthetic quotes with observed quotes without a source field",
+    "do not use this experiment to authorize real-money trading"
+  ]
+}

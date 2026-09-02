@@ -12,6 +12,7 @@ dependencies = [
   "fastapi>=0.115",
   "numpy>=2.0",
   "pandas>=2.2",
+  "pyarrow>=17",
   "psycopg[binary]>=3.2",
   "statsmodels>=0.14.5",
   "uvicorn>=0.34",

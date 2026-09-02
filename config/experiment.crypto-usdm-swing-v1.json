@@ -1,0 +1,24 @@
+{
+  "name": "crypto-usdm-swing-pairs-v1",
+  "universe": "config/universe.crypto-usdm-v1.json",
+  "interval": "1h",
+  "holdout_bars": 720,
+  "formation_bars": [4320],
+  "trade_bars": 336,
+  "step_bars": 336,
+  "fdr_alpha": 0.05,
+  "min_half_life_bars": 4,
+  "max_half_life_bars": 72,
+  "include_funding": true,
+  "execution": {
+    "entry_z": 2.0,
+    "exit_z": 0.5,
+    "stop_z": 4.0,
+    "max_holding_bars": 168,
+    "taker_fee_bps": 5.0,
+    "slippage_bps": 1.0
+  },
+  "signal_variants": [
+    {"name": "S1_180d_formation_7d_max_holding", "signal_scale": "formation"}
+  ]
+}

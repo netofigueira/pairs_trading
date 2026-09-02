@@ -8,7 +8,10 @@ not accidentally count the same market move more than once.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
+from functools import cache
+from math import log
 
 import pandas as pd
 
@@ -24,6 +27,7 @@ class WalkForwardConfig:
     fdr_alpha: float = 0.05
     min_half_life_bars: float = 4.0
     max_half_life_bars: float = 72.0
+    portfolio_matching: bool = False
 
     def __post_init__(self) -> None:
         if self.formation_bars < 90:
@@ -54,10 +58,12 @@ class WalkForwardResult:
         return {
             "folds": len(self.folds),
             "selected_pair_folds": int(self.selections["accepted"].sum()),
+            "portfolio_pair_folds": int(self.selections["portfolio_selected"].sum()),
             "trades": len(self.trades),
             "net_pnl": self.net_pnl,
             "win_rate": float((self.trades["net_pnl"] > 0).mean()),
             "mean_trade_pnl": float(self.trades["net_pnl"].mean()),
+            "max_drawdown": _trade_equity_drawdown(self.trades),
         }
 
 
@@ -65,6 +71,8 @@ def run_walk_forward(
     prices: pd.DataFrame,
     execution: BacktestConfig,
     config: WalkForwardConfig,
+    *,
+    funding_by_symbol: Mapping[str, pd.DataFrame] | None = None,
 ) -> WalkForwardResult:
     """Evaluate a universe via repeated formation-selection-trade folds.
 
@@ -95,6 +103,8 @@ def run_walk_forward(
             max_half_life_bars=config.max_half_life_bars,
         )
         accepted = [candidate for candidate in candidates if candidate.accepted]
+        portfolio = _maximum_weight_matching(accepted) if config.portfolio_matching else accepted
+        portfolio_ids = {id(candidate) for candidate in portfolio}
         fold_rows.append(
             {
                 "fold": fold_number,
@@ -104,16 +114,34 @@ def run_walk_forward(
                 "trade_end": trade.index.max(),
                 "tested_pairs": len(candidates),
                 "accepted_pairs": len(accepted),
+                "portfolio_pairs": len(portfolio),
             }
         )
         for candidate in candidates:
-            _append_selection(selection_rows, fold_number, candidate)
-        for candidate in accepted:
+            _append_selection(
+                selection_rows,
+                fold_number,
+                candidate,
+                portfolio_selected=id(candidate) in portfolio_ids,
+            )
+        for candidate in portfolio:
+            spread_history = candidate.model.spread(
+                formation[candidate.model.dependent],
+                formation[candidate.model.independent],
+            )
+            candidate_execution = _candidate_execution(execution, candidate)
             result = run_pair_backtest(
                 candidate.model,
                 trade[candidate.model.dependent],
                 trade[candidate.model.independent],
-                execution,
+                candidate_execution,
+                dependent_funding=_funding_for_symbol(
+                    funding_by_symbol, candidate.model.dependent
+                ),
+                independent_funding=_funding_for_symbol(
+                    funding_by_symbol, candidate.model.independent
+                ),
+                spread_history=spread_history,
             )
             for record in result.trades.to_dict("records"):
                 record.update(
@@ -121,6 +149,8 @@ def run_walk_forward(
                         "fold": fold_number,
                         "dependent_symbol": candidate.model.dependent,
                         "independent_symbol": candidate.model.independent,
+                        "signal_scale": candidate_execution.signal_scale,
+                        "volatility_span_bars": candidate_execution.volatility_span_bars,
                     }
                 )
                 trade_rows.append(record)
@@ -134,7 +164,9 @@ def run_walk_forward(
     )
 
 
-def _append_selection(rows: list[dict], fold: int, candidate: ScreenedPair) -> None:
+def _append_selection(
+    rows: list[dict], fold: int, candidate: ScreenedPair, *, portfolio_selected: bool
+) -> None:
     model = candidate.model
     rows.append(
         {
@@ -145,7 +177,72 @@ def _append_selection(rows: list[dict], fold: int, candidate: ScreenedPair) -> N
             "fdr_qvalue": candidate.fdr_qvalue,
             "half_life_bars": candidate.half_life_bars,
             "accepted": candidate.accepted,
+            "portfolio_selected": portfolio_selected,
             "formation_start": model.formation_start,
             "formation_end": model.formation_end,
         }
     )
+
+
+def _maximum_weight_matching(candidates: list[ScreenedPair]) -> list[ScreenedPair]:
+    """Choose a deterministic, maximum-quality set of pairs without shared assets."""
+
+    symbols = sorted(
+        {symbol for item in candidates for symbol in (item.model.dependent, item.model.independent)}
+    )
+    positions = {symbol: index for index, symbol in enumerate(symbols)}
+    edges: dict[tuple[int, int], ScreenedPair] = {}
+    for candidate in candidates:
+        first, second = sorted(
+            (positions[candidate.model.dependent], positions[candidate.model.independent])
+        )
+        edges[(first, second)] = candidate
+
+    @cache
+    def solve(mask: int) -> tuple[float, tuple[tuple[int, int], ...]]:
+        if mask == 0:
+            return 0.0, ()
+        first = (mask & -mask).bit_length() - 1
+        best_score, best_edges = solve(mask & ~(1 << first))
+        for second in range(first + 1, len(symbols)):
+            candidate = edges.get((first, second))
+            if candidate is None or not mask & (1 << second):
+                continue
+            score, selected = solve(mask & ~(1 << first) & ~(1 << second))
+            candidate_score = -log(max(candidate.fdr_qvalue, 1e-12))
+            candidate_score -= 0.01 * candidate.half_life_bars
+            if score + candidate_score > best_score:
+                best_score, best_edges = score + candidate_score, selected + ((first, second),)
+        return best_score, best_edges
+
+    _, selected_edges = solve((1 << len(symbols)) - 1)
+    return [edges[edge] for edge in selected_edges]
+
+
+def _candidate_execution(execution: BacktestConfig, candidate: ScreenedPair) -> BacktestConfig:
+    """Resolve H1's fixed-per-fold rolling window from formation-only half-life."""
+
+    if execution.signal_scale != "half_life_rolling":
+        return execution
+    if candidate.half_life_bars is None:
+        raise ValueError("accepted candidate is missing its formation half-life")
+    return replace(
+        execution,
+        signal_scale="rolling",
+        volatility_span_bars=max(2, round(candidate.half_life_bars)),
+    )
+
+
+def _funding_for_symbol(
+    funding_by_symbol: Mapping[str, pd.DataFrame] | None, symbol: str
+) -> pd.DataFrame | None:
+    if funding_by_symbol is None:
+        return None
+    return funding_by_symbol.get(symbol)
+
+
+def _trade_equity_drawdown(trades: pd.DataFrame) -> float:
+    """Drawdown of realized trade P&L; portfolio mark-to-market is a later gate."""
+
+    equity = trades.sort_values("exit_time")["net_pnl"].cumsum()
+    return float((equity - equity.cummax()).min())

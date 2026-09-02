@@ -1,6 +1,9 @@
-import pandas as pd
+from decimal import Decimal
 
-from quant_pairs.backtest import BacktestConfig, run_pair_backtest
+import pandas as pd
+import pytest
+
+from quant_pairs.backtest import BacktestConfig, _zscores, run_pair_backtest
 from quant_pairs.cointegration import FormationModel
 
 
@@ -64,3 +67,46 @@ def test_positive_funding_credits_the_short_leg() -> None:
     )
 
     assert result.trades.iloc[0].funding_pnl > 0
+
+
+def test_funding_accepts_database_decimal_values() -> None:
+    y, x = prices()
+    funding = pd.DataFrame(
+        {
+            "funding_time": [y.index[3]],
+            "funding_rate": [Decimal("0.01")],
+            "mark_price": [Decimal("10")],
+        }
+    )
+
+    result = run_pair_backtest(
+        model(),
+        y,
+        x,
+        BacktestConfig(entry_z=2.0, exit_z=0.5, stop_z=4.0, max_holding_bars=10),
+        dependent_funding=funding,
+    )
+
+    assert result.trades.iloc[0].funding_pnl > 0
+
+
+def test_rolling_scale_uses_only_spread_history_before_the_signal_bar() -> None:
+    index = pd.date_range("2024-01-02", periods=2, freq="h", tz="UTC")
+    y = pd.Series([20.085537, 54.59815], index=index, name="Y")  # log prices: 3, 4
+    x = pd.Series([1.0, 1.0], index=index, name="X")
+    history = pd.Series(
+        [0.0, 1.0, 2.0],
+        index=pd.date_range("2024-01-01", periods=3, freq="h", tz="UTC"),
+    )
+
+    zscores = _zscores(
+        model(),
+        y,
+        x,
+        BacktestConfig(signal_scale="rolling", volatility_span_bars=3),
+        history,
+    )
+
+    # std([0, 1, 2], ddof=1) is one. Including the current spread (3) would
+    # lower this z-score, so this assertion guards the t-1 information boundary.
+    assert zscores.iloc[0] == pytest.approx(3.0, rel=1e-6)

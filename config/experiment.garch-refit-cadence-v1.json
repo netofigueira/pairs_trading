@@ -1,0 +1,25 @@
+{
+  "experiment_id": "garch-refit-cadence-v1",
+  "declared_at": "2026-09-02",
+  "data_cutoff": "2026-09-03T00:00:00-03:00",
+  "training_window": "expanding",
+  "challenger_refit_days": 1,
+  "incumbent_refit_days": 30,
+  "horizons_days": [1, 14],
+  "bias_correction": "causal expanding-window v1",
+  "evaluation": {
+    "one_step": "diagnostic",
+    "fourteen_day": "selection",
+    "fourteen_day_sampling": "non-overlapping targets",
+    "primary": ["qlike", "mse_variance"],
+    "paired_test": "Diebold-Mariano QLIKE"
+  },
+  "promotion_rule": {
+    "requirements": [
+      "lower 14-day QLIKE",
+      "14-day variance MSE no worse",
+      "upper bound of 95% DM interval below zero"
+    ],
+    "fallback": "retain 30-day parameter refit"
+  }
+}

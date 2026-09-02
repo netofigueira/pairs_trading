@@ -41,6 +41,11 @@ cauda e conferir a IV bid/ask do contrato negociável.
 
 Configuração: `config/experiment.volatility-forecast-v1.json`.
 
+A origem da previsão avança diariamente; “refit a cada 30 dias” se refere apenas
+à reestimação dos parâmetros. O challenger com refit diário e alvo one-step foi
+testado separadamente e não melhorou o horizonte de 14 dias. Veja
+`docs/2026-09-02-walk-forward-refit-garch.md`.
+
 ## Resultado em targets não sobrepostos
 
 | Horizonte | Modelo | N | MSE variância | QLIKE | Correlação RV | Forecast médio | RV média futura |

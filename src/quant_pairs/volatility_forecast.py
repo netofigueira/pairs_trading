@@ -206,6 +206,56 @@ def diebold_mariano(
     }
 
 
+def compare_garch_refit_panels(
+    challenger: pd.DataFrame,
+    incumbent: pd.DataFrame,
+    *,
+    challenger_name: str = "daily_refit",
+    incumbent_name: str = "monthly_refit",
+    hac_lags: int = 0,
+) -> dict[str, object]:
+    """Compare corrected GARCH forecasts on exactly paired target windows."""
+
+    columns = [
+        "forecast_at",
+        "target_end",
+        "target_variance",
+        "garch_corrected_variance",
+    ]
+    left = challenger.loc[:, columns].rename(
+        columns={
+            "target_variance": "challenger_target",
+            "garch_corrected_variance": f"{challenger_name}_variance",
+        }
+    )
+    right = incumbent.loc[:, columns].rename(
+        columns={
+            "target_variance": "incumbent_target",
+            "garch_corrected_variance": f"{incumbent_name}_variance",
+        }
+    )
+    paired = left.merge(right, on=["forecast_at", "target_end"], how="inner")
+    paired = paired.dropna(subset=[f"{challenger_name}_variance", f"{incumbent_name}_variance"])
+    if paired.empty or not np.allclose(paired["challenger_target"], paired["incumbent_target"]):
+        raise ValueError("refit panels do not contain matching targets")
+    paired["target_variance"] = paired.pop("challenger_target")
+    paired = paired.drop(columns="incumbent_target")
+    metrics = forecast_metrics(paired, model_names=(challenger_name, incumbent_name))
+    comparison = diebold_mariano(
+        paired,
+        model=challenger_name,
+        benchmark=incumbent_name,
+        hac_lags=hac_lags,
+    )
+    return {
+        "observations": len(paired),
+        "first_forecast_at": str(paired["forecast_at"].min()),
+        "last_forecast_at": str(paired["forecast_at"].max()),
+        "metrics": metrics,
+        "diebold_mariano": comparison,
+    }
+
+
 def current_forecast(
     prices: pd.DataFrame,
     *,

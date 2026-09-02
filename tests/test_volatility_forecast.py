@@ -6,6 +6,7 @@ from quant_pairs.volatility_forecast import (
     add_expanding_bias_correction,
     attach_dvol,
     build_forecast_panel,
+    compare_garch_refit_panels,
     correct_current_forecast,
     current_forecast,
     diebold_mariano,
@@ -122,3 +123,22 @@ def test_current_correction_and_dm_expose_uncertainty() -> None:
     assert comparison["ci_low"] <= comparison["mean_qlike_difference"]
     assert comparison["ci_high"] >= comparison["mean_qlike_difference"]
     assert 0 <= comparison["p_value_two_sided"] <= 1
+
+
+def test_refit_comparison_requires_paired_targets() -> None:
+    panel = build_forecast_panel(
+        _prices(150),
+        horizon_days=5,
+        min_train_days=50,
+        rolling_window=20,
+        garch_refit_days=5,
+    )
+    corrected = add_expanding_bias_correction(panel, minimum_completed=3)
+    result = compare_garch_refit_panels(corrected, corrected)
+
+    assert result["observations"] > 0
+    assert result["diebold_mariano"]["mean_qlike_difference"] == pytest.approx(0)
+    mismatched = corrected.copy()
+    mismatched["target_variance"] *= 2
+    with pytest.raises(ValueError, match="matching targets"):
+        compare_garch_refit_panels(corrected, mismatched)

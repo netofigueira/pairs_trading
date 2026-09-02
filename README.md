@@ -144,6 +144,8 @@ automaticamente em ordem:
 ```
 
 Metodologia e rotina diária: [forecast de volatilidade V1](docs/2026-09-02-forecast-volatilidade.md).
+Comparação walk-forward entre refit diário e mensal:
+[cadência de refit do GARCH](docs/2026-09-02-walk-forward-refit-garch.md).
 
 Uma cross-section intraday pode validar seleção ATM, continuidade do mesmo
 contrato e fills ask/bid. Com `options_chain`, o runner usa deltas observados

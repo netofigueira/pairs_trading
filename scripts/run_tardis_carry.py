@@ -35,6 +35,8 @@ def main() -> None:
     parser.add_argument("--contracts", type=float, default=1.0)
     parser.add_argument("--with-options-chain", action="store_true")
     parser.add_argument("--perp-taker-fee-rate", type=float, default=0.0005)
+    parser.add_argument("--target-dte", type=float, default=14.0)
+    parser.add_argument("--hedge-exit-slippage-bps", type=float, default=0.0)
     arguments = parser.parse_args()
 
     quotes_root = Path(arguments.data_root) / "deribit" / "quotes"
@@ -83,6 +85,8 @@ def main() -> None:
                 ),
                 funding=funding,
                 perp_taker_fee_rate=arguments.perp_taker_fee_rate,
+                target_dte=arguments.target_dte,
+                hedge_exit_slippage_bps=arguments.hedge_exit_slippage_bps,
             )
         except (ValueError, FileNotFoundError) as error:
             result = {"status": "failed", "entry_date": date, "error": str(error)}

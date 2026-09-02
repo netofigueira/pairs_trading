@@ -89,7 +89,9 @@ Comandos:
   duas variantes: sem hedge e hedge estático pelo delta observado na entrada,
   carregado até o settle com funding horário. A saída do hedge usa o
   delivery price como fill (aproximação declarada: não há book do perp no
-  vencimento nas amostras gratuitas).
+  vencimento nas amostras gratuitas; `--hedge-exit-slippage-bps` desloca o
+  fill contra a posição para estressar o spread ausente).
+- Validação de funding exige cadência horária exata, não só contagem de linhas.
 - Resultado real de 2024-01-01 (straddle BTC-12JAN24-43000, 10,8 dias):
   prêmio de entrada 0,093 BTC, payoff 0,06405 BTC, hedge -286 contratos,
   funding +0,000262 BTC; líquido sem hedge -0,029699 BTC e com hedge estático
@@ -125,7 +127,9 @@ continua exigindo dados pagos ou coleta própria.
 - `src/quant_pairs/dvol.py`: P0 DVOL × RV sem leakage.
 - `src/quant_pairs/tardis.py`: downloader dos CSVs Tardis.
 - `src/quant_pairs/tardis_quotes.py`: reconstrução top-of-book por updates.
-- `src/quant_pairs/tardis_options.py`: parser de contrato e seleção ATM.
+- `src/quant_pairs/tardis_options.py`: parser de contrato e seleção com regra
+  pré-declarada: primeiro o vencimento mais próximo do `target_dte` (default
+  14), depois o strike ATM dentro dele.
 - `src/quant_pairs/tardis_intraday.py`: round-trip intraday executável com
   delta observado, hedge inverso no perp e líquido final bloqueado sem funding.
 - `src/quant_pairs/funding.py`: funding público horário + P&L de funding.

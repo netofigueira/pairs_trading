@@ -14,11 +14,18 @@ def select_atm_straddle(
     as_of: pd.Timestamp,
     min_dte: int = 7,
     max_dte: int = 30,
+    target_dte: float = 14.0,
 ) -> pd.DataFrame:
-    """Choose the nearest-strike call and put with observed executable books."""
+    """Choose the expiry nearest a pre-declared DTE, then its ATM call/put pair.
+
+    The horizon comes first so the tenor is a rule, not an artifact of which
+    strike happened to sit closest to spot on a given day.
+    """
 
     if underlying_mid <= 0 or min_dte < 0 or max_dte < min_dte:
         raise ValueError("invalid underlying price or DTE bounds")
+    if not min_dte <= target_dte <= max_dte:
+        raise ValueError("target_dte must lie within the DTE bounds")
     rows: list[dict[str, object]] = []
     for row in options.itertuples(index=False):
         parsed = _parse_option(str(row.symbol))
@@ -46,7 +53,14 @@ def select_atm_straddle(
     ).dropna()
     if paired.empty:
         return pd.DataFrame(columns=candidates.columns)
-    expiry, strike, _ = min(paired.index, key=lambda item: abs(item[1] / underlying_mid - 1))
+    chosen_expiry = min(
+        {item[0]: item[2] for item in paired.index}.items(),
+        key=lambda item: abs(item[1] - target_dte),
+    )[0]
+    expiry, strike, _ = min(
+        (item for item in paired.index if item[0] == chosen_expiry),
+        key=lambda item: abs(item[1] / underlying_mid - 1),
+    )
     return (
         candidates.loc[(candidates["expiry"] == expiry) & (candidates["strike"] == strike)]
         .sort_values("type")

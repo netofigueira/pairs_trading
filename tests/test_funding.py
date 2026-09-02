@@ -69,3 +69,27 @@ def test_funding_pnl_rejects_incomplete_coverage() -> None:
         funding_pnl_btc(
             funding, contracts=100, start=start, end=start + pd.Timedelta(hours=8)
         )
+
+
+def test_funding_pnl_rejects_irregular_cadence() -> None:
+    start = pd.Timestamp("2024-01-01T12:00:00Z")
+    # four rows for a 4-hour window, but two are 30 minutes apart
+    timestamps = [
+        start + pd.Timedelta(hours=1),
+        start + pd.Timedelta(hours=1, minutes=30),
+        start + pd.Timedelta(hours=3),
+        start + pd.Timedelta(hours=4),
+    ]
+    funding = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "index_price": [40_000.0] * 4,
+            "interest_1h": [1e-4] * 4,
+            "interest_8h": [8e-4] * 4,
+        }
+    )
+
+    with pytest.raises(ValueError, match="irregular cadence"):
+        funding_pnl_btc(
+            funding, contracts=100, start=start, end=start + pd.Timedelta(hours=4)
+        )

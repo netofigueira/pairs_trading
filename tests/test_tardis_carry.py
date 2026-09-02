@@ -71,8 +71,16 @@ def test_carry_static_hedge_holds_perp_to_settlement_with_funding(tmp_path) -> N
     entry_us = int(ENTRY.timestamp() * 1_000_000)
     pd.DataFrame(
         [
-            {"symbol": "BTC-12JAN24-42000-C", "timestamp": entry_us, "local_timestamp": entry_us, "delta": 0.55},
-            {"symbol": "BTC-12JAN24-42000-P", "timestamp": entry_us, "local_timestamp": entry_us, "delta": -0.45},
+            {
+                "symbol": symbol,
+                "timestamp": entry_us,
+                "local_timestamp": entry_us,
+                "delta": delta,
+            }
+            for symbol, delta in (
+                ("BTC-12JAN24-42000-C", 0.55),
+                ("BTC-12JAN24-42000-P", -0.45),
+            )
         ]
     ).to_csv(chain_path, index=False, compression="gzip")
     hours = int((EXPIRY - ENTRY) / pd.Timedelta(hours=1))
@@ -109,6 +117,31 @@ def test_carry_static_hedge_holds_perp_to_settlement_with_funding(tmp_path) -> N
         - result["hedge_fees_btc"]
         + result["funding_pnl_btc"]
     )
+
+
+def test_hedge_exit_slippage_moves_the_fill_against_the_position() -> None:
+    from quant_pairs.tardis_carry import _static_hedge_accounting
+
+    entry_perp = pd.Series(
+        {
+            "bid_price": 41_999.0,
+            "ask_price": 42_001.0,
+            "bid_amount": 100_000.0,
+            "ask_amount": 100_000.0,
+        }
+    )
+    kwargs = dict(entry_perp=entry_perp, exit_price=46_200.0, taker_fee_rate=0.0)
+
+    flat = _static_hedge_accounting(-100, exit_slippage_bps=0.0, **kwargs)
+    slipped_short = _static_hedge_accounting(-100, exit_slippage_bps=5.0, **kwargs)
+    slipped_long = _static_hedge_accounting(100, exit_slippage_bps=5.0, **kwargs)
+
+    # closing the short buys at a worse (higher) price
+    assert slipped_short["pnl_btc"] < flat["pnl_btc"]
+    # closing the long sells at a worse (lower) price
+    assert slipped_long["pnl_btc"] < _static_hedge_accounting(
+        100, exit_slippage_bps=0.0, **kwargs
+    )["pnl_btc"]
 
 
 def test_carry_hedge_requires_funding_history(tmp_path) -> None:

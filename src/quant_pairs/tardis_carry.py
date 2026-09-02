@@ -41,10 +41,12 @@ def run_carry_straddle(
     max_age: pd.Timedelta = pd.Timedelta(minutes=5),
     min_dte: int = 7,
     max_dte: int = 30,
+    target_dte: float = 14.0,
     contracts: float = 1.0,
     options_chain_path: Path | str | None = None,
     funding: pd.DataFrame | None = None,
     perp_taker_fee_rate: float = DEFAULT_PERP_TAKER_FEE_RATE,
+    hedge_exit_slippage_bps: float = 0.0,
 ) -> dict[str, object]:
     """Simulate one long ATM straddle bought at real asks and held to expiry.
 
@@ -74,6 +76,7 @@ def run_carry_straddle(
         as_of=entry,
         min_dte=min_dte,
         max_dte=max_dte,
+        target_dte=target_dte,
     )
     if len(selected) != 2:
         raise ValueError("no executable BTC ATM call/put pair in the requested DTE range")
@@ -146,6 +149,7 @@ def run_carry_straddle(
         entry_perp=entry_perp,
         exit_price=delivery_price,
         taker_fee_rate=perp_taker_fee_rate,
+        exit_slippage_bps=hedge_exit_slippage_bps,
     )
     funding_pnl = funding_pnl_btc(
         funding, contracts=hedge_contracts, start=entry, end=expiry
@@ -160,6 +164,7 @@ def run_carry_straddle(
                 option_delta_btc + hedge_contracts * PERP_CONTRACT_SIZE_USD / underlying_mid
             ),
             "hedge_exit_price_source": "delivery_price",
+            "hedge_exit_slippage_bps": hedge_exit_slippage_bps,
             "hedge_pnl_btc": hedge["pnl_btc"],
             "hedge_fees_btc": hedge["fees_btc"],
             "funding_pnl_btc": funding_pnl,
@@ -177,19 +182,26 @@ def _static_hedge_accounting(
     entry_perp: pd.Series,
     exit_price: float,
     taker_fee_rate: float,
+    exit_slippage_bps: float,
 ) -> dict[str, float]:
     """Inverse-perp P&L for a hedge opened crossing the spread and closed at settlement.
 
     The exit fill is the official delivery price (index TWAP at expiry), a
     declared approximation because free samples carry no perp book at expiry.
+    ``exit_slippage_bps`` shifts the exit fill against the position to stress
+    the missing exit spread.
     """
 
     if taker_fee_rate < 0:
         raise ValueError("perp taker fee rate cannot be negative")
+    if exit_slippage_bps < 0:
+        raise ValueError("exit slippage cannot be negative")
     if contracts == 0:
         return {"pnl_btc": 0.0, "fees_btc": 0.0}
     side = "ask" if contracts > 0 else "bid"
     entry_fill = float(entry_perp[f"{side}_price"])
+    # closing a long sells (adverse: lower price); closing a short buys (higher)
+    exit_price *= 1 + (-1 if contracts > 0 else 1) * exit_slippage_bps / 10_000
     notional_usd = abs(contracts) * PERP_CONTRACT_SIZE_USD
     if notional_usd > float(entry_perp[f"{side}_amount"]):
         raise ValueError("top-of-book perp size is smaller than the delta hedge")

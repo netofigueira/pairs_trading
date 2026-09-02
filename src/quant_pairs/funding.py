@@ -100,11 +100,17 @@ def funding_pnl_btc(
         raise ValueError("end must be after start")
     window = funding.loc[
         (funding["timestamp"] > start_utc) & (funding["timestamp"] <= end_utc)
-    ]
+    ].sort_values("timestamp")
     expected_hours = int((end_utc - start_utc) / pd.Timedelta(hours=1))
     if len(window) < expected_hours:
         raise ValueError(
             f"funding history covers {len(window)} of {expected_hours} hourly accruals"
+        )
+    gaps = window["timestamp"].diff().dropna()
+    if not gaps.eq(pd.Timedelta(hours=1)).all():
+        raise ValueError(
+            "funding history has an irregular cadence: "
+            f"gaps range from {gaps.min()} to {gaps.max()}"
         )
     position_btc = contracts * contract_size_usd / window["index_price"]
     return float(-(position_btc * window["interest_1h"]).sum())

@@ -25,6 +25,7 @@ def run_intraday_straddle(
     max_age: pd.Timedelta = pd.Timedelta(minutes=5),
     min_dte: int = 7,
     max_dte: int = 30,
+    target_dte: float = 14.0,
     contracts: float = 1.0,
     options_chain_path: Path | str | None = None,
     perp_taker_fee_rate: float = DEFAULT_PERP_TAKER_FEE_RATE,
@@ -63,6 +64,7 @@ def run_intraday_straddle(
         as_of=entry,
         min_dte=min_dte,
         max_dte=max_dte,
+        target_dte=target_dte,
     )
     if len(selected) != 2:
         raise ValueError("no executable BTC ATM call/put pair in the requested DTE range")

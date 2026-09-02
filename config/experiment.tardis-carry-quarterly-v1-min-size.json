@@ -1,0 +1,27 @@
+{
+  "experiment_id": "tardis-carry-quarterly-v1-min-size",
+  "parent_experiment_id": "tardis-carry-quarterly-v1",
+  "declared_at": "2026-09-01",
+  "purpose": "Coverage sensitivity at Deribit's 0.1 BTC option minimum size",
+  "sample": {
+    "start_month": "2020-04",
+    "end_month": "2026-07",
+    "month_step": 3,
+    "entry_day": 1,
+    "entry_time_utc": "12:00:00"
+  },
+  "selection": {
+    "target_dte": 14.0,
+    "min_dte": 7,
+    "max_dte": 30,
+    "strike_rule": "nearest ATM after selecting expiry nearest target_dte",
+    "contracts_per_leg": 0.1
+  },
+  "execution": {
+    "entry_fill": "observed Tardis ask",
+    "max_quote_age_seconds": 300,
+    "exit": "official Deribit delivery price"
+  },
+  "variant": "unhedged_long_straddle",
+  "interpretation": "Coverage sensitivity only; not a newly optimized strategy"
+}

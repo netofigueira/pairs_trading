@@ -37,6 +37,7 @@ def main() -> None:
     parser.add_argument("--perp-taker-fee-rate", type=float, default=0.0005)
     parser.add_argument("--target-dte", type=float, default=14.0)
     parser.add_argument("--hedge-exit-slippage-bps", type=float, default=0.0)
+    parser.add_argument("--output", help="optional path for the JSON result artifact")
     arguments = parser.parse_args()
 
     quotes_root = Path(arguments.data_root) / "deribit" / "quotes"
@@ -91,7 +92,12 @@ def main() -> None:
         except (ValueError, FileNotFoundError) as error:
             result = {"status": "failed", "entry_date": date, "error": str(error)}
         results.append(result)
-    print(json.dumps(results, indent=2))
+    serialized = json.dumps(results, indent=2)
+    if arguments.output:
+        output_path = Path(arguments.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(f"{serialized}\n", encoding="utf-8")
+    print(serialized)
 
 
 if __name__ == "__main__":

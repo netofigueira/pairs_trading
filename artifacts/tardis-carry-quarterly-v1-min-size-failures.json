@@ -1,0 +1,154 @@
+[
+  {
+    "status": "carry_unhedged_settled",
+    "entry_at": "2020-10-01 12:00:00+00:00",
+    "expiry_at": "2020-10-16 08:00:00+00:00",
+    "days_held": 14.833333333333334,
+    "max_age_seconds": 300.0,
+    "contracts_per_leg": 0.1,
+    "entry_underlying_mid_usd": 10909.25,
+    "delivery_price_usd": 11331.76,
+    "legs": [
+      {
+        "symbol": "BTC-16OCT20-11000-C",
+        "type": "call",
+        "strike": 11000.0,
+        "expiry": "2020-10-16 08:00:00+00:00",
+        "entry_ask_btc": 0.0305,
+        "settlement_payoff_btc": 0.029277005513706628
+      },
+      {
+        "symbol": "BTC-16OCT20-11000-P",
+        "type": "put",
+        "strike": 11000.0,
+        "expiry": "2020-10-16 08:00:00+00:00",
+        "entry_ask_btc": 0.035,
+        "settlement_payoff_btc": 0.0
+      }
+    ],
+    "entry_premium_btc": 0.00655,
+    "settlement_payoff_btc": 0.0029277005513706628,
+    "option_entry_fees_btc": 5.9999999999999995e-05,
+    "settlement_fees_btc": 1.4999999999999999e-05,
+    "net_unhedged_pnl_btc": -0.0036972994486293375,
+    "hedge_contracts": null,
+    "hedge_pnl_btc": null,
+    "hedge_fees_btc": null,
+    "funding_pnl_btc": null,
+    "net_static_hedged_pnl_btc": null
+  },
+  {
+    "status": "carry_unhedged_settled",
+    "entry_at": "2021-04-01 12:00:00+00:00",
+    "expiry_at": "2021-04-16 08:00:00+00:00",
+    "days_held": 14.833333333333334,
+    "max_age_seconds": 300.0,
+    "contracts_per_leg": 0.1,
+    "entry_underlying_mid_usd": 58642.0,
+    "delivery_price_usd": 61568.16,
+    "legs": [
+      {
+        "symbol": "BTC-16APR21-58000-C",
+        "type": "call",
+        "strike": 58000.0,
+        "expiry": "2021-04-16 08:00:00+00:00",
+        "entry_ask_btc": 0.071,
+        "settlement_payoff_btc": 0.05795463109503359
+      },
+      {
+        "symbol": "BTC-16APR21-58000-P",
+        "type": "put",
+        "strike": 58000.0,
+        "expiry": "2021-04-16 08:00:00+00:00",
+        "entry_ask_btc": 0.041,
+        "settlement_payoff_btc": 0.0
+      }
+    ],
+    "entry_premium_btc": 0.0112,
+    "settlement_payoff_btc": 0.005795463109503359,
+    "option_entry_fees_btc": 5.9999999999999995e-05,
+    "settlement_fees_btc": 1.4999999999999999e-05,
+    "net_unhedged_pnl_btc": -0.005479536890496641,
+    "hedge_contracts": null,
+    "hedge_pnl_btc": null,
+    "hedge_fees_btc": null,
+    "funding_pnl_btc": null,
+    "net_static_hedged_pnl_btc": null
+  },
+  {
+    "status": "carry_unhedged_settled",
+    "entry_at": "2024-10-01 12:00:00+00:00",
+    "expiry_at": "2024-10-18 08:00:00+00:00",
+    "days_held": 16.833333333333332,
+    "max_age_seconds": 300.0,
+    "contracts_per_leg": 0.1,
+    "entry_underlying_mid_usd": 63733.75,
+    "delivery_price_usd": 67962.18,
+    "legs": [
+      {
+        "symbol": "BTC-18OCT24-64000-C",
+        "type": "call",
+        "strike": 64000.0,
+        "expiry": "2024-10-18 08:00:00+00:00",
+        "entry_ask_btc": 0.04,
+        "settlement_payoff_btc": 0.058299777905888146
+      },
+      {
+        "symbol": "BTC-18OCT24-64000-P",
+        "type": "put",
+        "strike": 64000.0,
+        "expiry": "2024-10-18 08:00:00+00:00",
+        "entry_ask_btc": 0.041,
+        "settlement_payoff_btc": 0.0
+      }
+    ],
+    "entry_premium_btc": 0.008100000000000001,
+    "settlement_payoff_btc": 0.005829977790588815,
+    "option_entry_fees_btc": 5.9999999999999995e-05,
+    "settlement_fees_btc": 1.4999999999999999e-05,
+    "net_unhedged_pnl_btc": -0.0023450222094111863,
+    "hedge_contracts": null,
+    "hedge_pnl_btc": null,
+    "hedge_fees_btc": null,
+    "funding_pnl_btc": null,
+    "net_static_hedged_pnl_btc": null
+  },
+  {
+    "status": "carry_unhedged_settled",
+    "entry_at": "2025-07-01 12:00:00+00:00",
+    "expiry_at": "2025-07-18 08:00:00+00:00",
+    "days_held": 16.833333333333332,
+    "max_age_seconds": 300.0,
+    "contracts_per_leg": 0.1,
+    "entry_underlying_mid_usd": 106609.75,
+    "delivery_price_usd": 119753.4,
+    "legs": [
+      {
+        "symbol": "BTC-18JUL25-107000-C",
+        "type": "call",
+        "strike": 107000.0,
+        "expiry": "2025-07-18 08:00:00+00:00",
+        "entry_ask_btc": 0.028,
+        "settlement_payoff_btc": 0.10649718504860818
+      },
+      {
+        "symbol": "BTC-18JUL25-107000-P",
+        "type": "put",
+        "strike": 107000.0,
+        "expiry": "2025-07-18 08:00:00+00:00",
+        "entry_ask_btc": 0.03,
+        "settlement_payoff_btc": 0.0
+      }
+    ],
+    "entry_premium_btc": 0.0058,
+    "settlement_payoff_btc": 0.010649718504860819,
+    "option_entry_fees_btc": 5.9999999999999995e-05,
+    "settlement_fees_btc": 1.4999999999999999e-05,
+    "net_unhedged_pnl_btc": 0.004774718504860819,
+    "hedge_contracts": null,
+    "hedge_pnl_btc": null,
+    "hedge_fees_btc": null,
+    "funding_pnl_btc": null,
+    "net_static_hedged_pnl_btc": null
+  }
+]

@@ -1,7 +1,7 @@
 # Handoff — pesquisa de volatilidade cripto
 
 Data: 2026-09-01  
-Commit-base: `df557f1 Add observed-delta hedge to Tardis gate`
+Commit-base: `fa8ee71 Add quarterly Tardis pilot sampling`
 Estado: P0 concluída; P1 de infraestrutura em andamento; nada aprovado para dinheiro real.
 
 ## Onde paramos
@@ -107,15 +107,22 @@ Comandos:
 
 ## Próximo passo exato
 
-1. Baixar os primeiros dias mensais de 2019-05 até hoje
-   (`collect_tardis_monthly_samples.py`) e rodar `run_tardis_carry.py` em todos,
-   nas duas variantes, medindo cobertura e falhas por mês.
-2. Extrair/cachear somente Greeks necessários do `options_chain` (1,87 GB/dia),
-   evitando redescompactar metade do dia a cada cenário.
-3. Analisar a amostra completa (~75-80 meses) como gate de viabilidade,
-   declarando: só entradas no dia 1, hedge estático mistura gamma do caminho
-   com prêmio de vol, saída do hedge aproximada pelo delivery price, amostra
-   pequena e viés de calendário.
+O piloto trimestral long-only foi concluído antes da aquisição massiva de
+Greeks. Foram coletadas 26 datas de 2020-04 a 2026-07 (6,7 GB de quotes), com
+22 fills de um contrato. Apenas 7 foram positivos; retorno mediano sobre prêmio
+de -9,91% e P&L total de -0,177873 BTC. Uma sensibilidade de 0,1 contrato
+recuperou as quatro falhas de tamanho; nas 26 observações, 8 foram positivas e
+o retorno mediano foi -12,68%. A compra sistemática de straddle foi reprovada
+como estratégia standalone neste gate.
+
+Próximas ações:
+
+1. Não baixar `options_chain` para todos os trimestres enquanto não houver uma
+   pergunta adicional que justifique ~150 GB de tráfego.
+2. Atribuir os 26 resultados por regime DVOL, magnitude do movimento e DTE com
+   os dados públicos já existentes, sem escolher regra depois de ver o P&L.
+3. Não inverter mecanicamente o resultado para short-vol: qualquer experimento
+   vendido precisa modelar margem, liquidação e cauda antes de ser declarado.
 
 O carry até o vencimento contorna a falta de quotes contínuos de opções: só a
 entrada exige book executável (Tardis gratuito no dia 1 de cada mês); payoff,
@@ -137,6 +144,8 @@ continua exigindo dados pagos ou coleta própria.
 - `src/quant_pairs/tardis_carry.py`: carry até o vencimento (sem hedge e
   hedge estático).
 - `scripts/run_tardis_carry.py`: CLI do gate de carry mensal.
+- `docs/2026-09-01-piloto-carry-trimestral.md`: desenho, resultado e decisão do
+  gate trimestral long-only.
 - `scripts/run_tardis_intraday.py`: CLI do gate intraday.
 - `scripts/inspect_tardis_quotes.py`: auditor de livros executáveis.
 - `docs/2026-08-31-roadmap-pesquisa-quant-cripto.md`: diário completo e

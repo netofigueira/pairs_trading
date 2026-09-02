@@ -1,0 +1,27 @@
+{
+  "experiment_id": "rolling-volatility-book-v1",
+  "declared_at": "2026-09-02",
+  "purpose": "portfolio-mechanics research over daily forecast decisions; not executable historical-fill evidence",
+  "sample": {
+    "start_at": "2022-05-01T08:00:00Z",
+    "end_at": "2026-08-18T08:00:00Z"
+  },
+  "signal": "enter only when the frozen causal GARCH 14-day forecast variance is below synthetic bid-IV variance",
+  "book": {
+    "horizon_days": 14,
+    "contracts_per_entry": 0.1,
+    "max_contracts_per_btc": 0.5,
+    "initial_equity_btc": 1.0,
+    "bid_iv_discount_points": 1.0,
+    "funding_rate_hourly": 0.000008942336963141507,
+    "perp_taker_fee_rate": 0.0005
+  },
+  "synthetic_entry": "ATM inverse straddle priced at DVOL mid-IV minus one absolute IV point; no historical option book is implied",
+  "limitations": [
+    "daily entries and marks are synthetic_model because dense historical option books are not present locally",
+    "DVOL is a 30-day volatility index, not the executable bid IV of a 14-day straddle",
+    "spot is used as a forward proxy and funding is a fixed historical mean",
+    "margin is a standard-formula approximation; a breach is reported, not a venue liquidation simulation",
+    "this experiment is separate from and cannot alter the sealed live holdout specification"
+  ]
+}

@@ -116,6 +116,15 @@ são confundidos com execução real:
 
 Metodologia, percentis e limitações: [backfill sintético V1](docs/2026-09-02-backfill-opcoes-sintetico.md).
 
+O envelope diário de saída antecipada é regenerado por:
+
+```bash
+.venv/bin/python scripts/run_synthetic_option_backfill.py
+```
+
+Ele usa entrada vendida no bid observado e recompra no ask sintético. O
+resultado é diagnóstico de viabilidade e não inclui margem ou liquidação.
+
 Uma cross-section intraday pode validar seleção ATM, continuidade do mesmo
 contrato e fills ask/bid. Com `options_chain`, o runner usa deltas observados
 no mesmo instante para neutralizar a entrada com BTC-PERPETUAL. O líquido final

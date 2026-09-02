@@ -1,8 +1,8 @@
 # Backfill sintético de opções BTC — desenho V1
 
 Data: 2026-09-02  
-Estado: infraestrutura e calibração inicial concluídas; backtest de saída ainda
-não executado; nada aprovado para dinheiro real.
+Estado: envelope diário V1 executado; resultado exploratório; nada aprovado
+para dinheiro real.
 
 ## Objetivo
 
@@ -87,12 +87,59 @@ vendida, o fill será o ask sintético; para fechar uma comprada, o bid sintéti
   choques de +5/+10/+15 pontos de IV. Resultado apenas no cenário central será
   rejeitado.
 
-## Próxima implementação
+## Envelope diário executado
 
-1. alinhar a série diária de BTC e DVOL sem usar informação futura;
-2. construir cenários explícitos de basis do forward;
-3. marcar diariamente call e put do contrato originalmente vendido;
-4. simular recompras no ask sintético, fees e slippage;
-5. comparar regras pré-declaradas de lucro, stop, DTE mínimo e choque de IV;
-6. reportar o envelope completo, inclusive cauda e pior cenário, sem otimizar a
-   regra sobre toda a amostra.
+O runner marca os contratos originais uma vez por dia. O close de cada candle
+só fica disponível em `timestamp + 1 dia`, impedindo o uso antecipado do preço.
+A IV parte da IV de entrada observada e acompanha a variação do último DVOL
+disponível. O forward diário usa o close do perp e o yield de basis implícito na
+entrada, com choque adicional de -50/0/+50 bps.
+
+```bash
+.venv/bin/python scripts/run_synthetic_option_backfill.py
+```
+
+Foram avaliadas três regras declaradas em configuração antes da leitura do
+resultado, cruzadas com quatro percentis de spread, quatro choques de IV e três
+choques de basis: 48 cenários por regra. A posição é de 0,1 contrato por perna.
+
+Cobertura: 22 de 26 entradas. As quatro anteriores a 2021-03 foram recusadas
+porque ainda não existia DVOL público; nenhuma IV foi preenchida olhando o
+futuro.
+
+### Cenário central — spread P50, IV sem choque, basis neutra
+
+| Regra | Positivas | P&L total | Retorno médio/crédito | Mediana | Pior trade |
+|---|---:|---:|---:|---:|---:|
+| TP25, stop 2x, saída 3 DTE | 17/22 | +0,01056 BTC | +1,65% | +26,93% | -194,86% |
+| TP50, stop 2x, saída 3 DTE | 16/22 | +0,01925 BTC | +4,45% | +21,14% | -194,86% |
+| TP50, stop 1,5x, saída 7 DTE | 15/22 | +0,00586 BTC | +0,95% | +12,66% | -67,24% |
+
+O baseline vendido até o vencimento nas mesmas 22 datas teve 14 positivas,
++0,01747 BTC, retorno médio de +2,19%, mediana de +7,80% e pior trade de
+-152,62% do crédito. Assim, TP50/stop 2x/3 DTE melhora modestamente o agregado
+e a média centrais, mas não melhora a cauda nesta resolução diária.
+
+### Cenário adverso — spread P95, +15 pontos de IV, +50 bps de basis
+
+| Regra | Positivas | P&L total | Retorno médio/crédito | Mediana | Pior trade |
+|---|---:|---:|---:|---:|---:|
+| TP25, stop 2x, saída 3 DTE | 14/22 | -0,00423 BTC | -8,33% | +5,81% | -194,36% |
+| TP50, stop 2x, saída 3 DTE | 13/22 | -0,00012 BTC | -7,12% | +3,74% | -194,36% |
+| TP50, stop 1,5x, saída 7 DTE | 6/22 | -0,02978 BTC | -21,59% | -14,06% | -83,49% |
+
+Artefato completo: `artifacts/synthetic-option-backfill-v1.json` (cerca de
+1,9 MB), com 3.168 resultados individuais e 144 agregações.
+
+## Decisão da rodada
+
+O envelope sustenta a hipótese de que existe prêmio a capturar, mas **não
+aprova uma regra de saída**. TP50/stop 2x/3 DTE quase preserva o P&L agregado no
+pior cenário, porém sua média fica negativa e o stop diário permite gaps muito
+além de 2x. A regra mais apertada reduz a pior perda, mas destrói resultado sob
+estresse.
+
+O próximo gate não é procurar mais combinações de take-profit. É incorporar
+margem/liquidação e medir barreiras intradiárias ou, na ausência delas, aplicar
+um choque explícito de gap. Só depois faz sentido separar formação e validação
+temporal para escolher uma regra sem overfit.

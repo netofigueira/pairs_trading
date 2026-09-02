@@ -144,8 +144,13 @@ Próximas ações:
 - O artefato compacto versionado é
   `artifacts/tardis-option-spread-calibration-v1.json`.
 - O próximo passo é o painel diário de marcação sintética com DVOL, cenários de
-  basis e recompra de posições vendidas no ask sintético. O resultado será
-  declarado como envelope de viabilidade, não backtest executável.
+  basis e recompra de posições vendidas no ask sintético.
+- Envelope executado em 22 datas com 48 cenários por regra. No centro,
+  TP50/stop 2x/3 DTE fez +0,01925 BTC contra +0,01747 BTC do hold comparável,
+  mas teve pior trade de -194,86% do crédito. Em P95 de spread, +15 pontos de
+  IV e +50 bps de basis, ficou em -0,00012 BTC e retorno médio de -7,12%.
+- Nenhuma regra foi aprovada. Próximo gate: margem, liquidação e gap
+  intradiário antes de qualquer nova otimização de saída.
 
 Desenho e limitações: `docs/2026-09-02-backfill-opcoes-sintetico.md`.
 
@@ -175,6 +180,10 @@ continua exigindo dados pagos ou coleta própria.
 - `scripts/build_volatility_report.py`: regenera o artefato do dashboard.
 - `scripts/calibrate_tardis_option_spreads.py`: calibra spread e largura de IV
   nos ATM trimestrais observados.
+- `src/quant_pairs/synthetic_option_backfill.py`: marcação diária sem leakage e
+  avaliação das regras de recompra.
+- `scripts/run_synthetic_option_backfill.py`: executa o envelope de 144
+  combinações agregadas.
 - `src/quant_pairs/static/volatility.html`: página autocontida de pesquisa.
 - `docs/2026-09-01-piloto-carry-trimestral.md`: desenho, resultado e decisão do
   gate trimestral long-only.

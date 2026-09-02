@@ -19,6 +19,12 @@
     "include_slippage": true
   },
   "volatility_stress_absolute_points": [0, 5, 10, 15],
+  "basis_stress_bps": [-50, 0, 50],
+  "exit_rules": [
+    {"name": "tp25_stop2_dte3", "profit_target": 0.25, "stop_multiple": 2.0, "exit_dte": 3.0},
+    {"name": "tp50_stop2_dte3", "profit_target": 0.50, "stop_multiple": 2.0, "exit_dte": 3.0},
+    {"name": "tp50_stop1.5_dte7", "profit_target": 0.50, "stop_multiple": 1.5, "exit_dte": 7.0}
+  ],
   "gates": [
     "report a result envelope across spread and volatility scenarios",
     "reject rules that work only in the central scenario",

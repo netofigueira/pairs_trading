@@ -39,8 +39,13 @@ def inverse_option_price(
     )
     d2 = d1 - standard_deviation
     if option_type == "call":
-        return _normal_cdf(d1) - strike / forward * _normal_cdf(d2)
-    return strike / forward * _normal_cdf(-d2) - _normal_cdf(-d1)
+        value = _normal_cdf(d1) - strike / forward * _normal_cdf(d2)
+    else:
+        value = strike / forward * _normal_cdf(-d2) - _normal_cdf(-d1)
+    # Deep OTM values can suffer cancellation at machine precision.  An
+    # option value cannot fall below inverse intrinsic value.
+    intrinsic = inverse_intrinsic_value(option_type, forward=forward, strike=strike)
+    return max(value, intrinsic)
 
 
 def inverse_intrinsic_value(

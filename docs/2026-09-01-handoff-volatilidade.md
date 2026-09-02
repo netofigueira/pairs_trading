@@ -151,6 +151,12 @@ Próximas ações:
   IV e +50 bps de basis, ficou em -0,00012 BTC e retorno médio de -7,12%.
 - Nenhuma regra foi aprovada. Próximo gate: margem, liquidação e gap
   intradiário antes de qualquer nova otimização de saída.
+- O stress posterior força um choque de +/-10%, +/-15% ou +/-20% uma vez em
+  cada trade e no pior dia ex post. Após corrigir cancelamento numérico no
+  Black-76, a cobertura permaneceu 22 datas. Choques de -10% e +10% tornaram o
+  agregado central negativo. Isso reprova o stop diário como proteção, mas não
+  estima retorno esperado: o evento foi imposto em 100% dos trades e não pela
+  frequência histórica.
 
 Desenho e limitações: `docs/2026-09-02-backfill-opcoes-sintetico.md`.
 

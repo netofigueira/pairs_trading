@@ -111,6 +111,88 @@ def build_daily_straddle_marks(
     return pd.DataFrame(rows)
 
 
+def inject_gap_shock(
+    marks: pd.DataFrame,
+    *,
+    strike: float,
+    gap_return: float,
+    iv_bump_points: float,
+    contracts: float = 1.0,
+) -> pd.DataFrame:
+    """Insert an instantaneous close-to-close gap into an existing mark path.
+
+    Daily marks cannot see intraday moves, so a real overnight gap is invisible
+    to a close-based stop.  This applies the gap to the worst decision day: the
+    day whose modeled forward, shocked by ``gap_return``, produces the most
+    expensive straddle.  Skew widens in a crash, so IV is bumped by
+    ``iv_bump_points`` at the same instant.  The re-marked row replaces the
+    original for that day; later days keep their un-gapped path, since the model
+    has no basis to propagate the shock forward.
+
+    Returns the marks with the gapped row substituted in place.  The gapped row
+    is flagged with ``gap_applied = True`` and carries the ``gap_return`` used.
+    """
+
+    if marks.empty:
+        return marks
+    if strike <= 0 or contracts <= 0:
+        raise ValueError("strike and contracts must be positive")
+    if not math.isfinite(gap_return) or gap_return <= -1:
+        raise ValueError("gap_return must be finite and greater than -1")
+    if iv_bump_points < 0:
+        raise ValueError("iv_bump_points must be non-negative")
+
+    ordered = marks.sort_values("decision_at").reset_index(drop=True)
+    ordered["gap_applied"] = False
+    ordered["gap_return"] = 0.0
+
+    best_index = None
+    best_cost = -math.inf
+    best_payload: dict[str, object] | None = None
+    for index, row in ordered.iterrows():
+        remaining_years = float(row["remaining_dte"]) / 365
+        forward = float(row["forward_usd"]) * (1 + gap_return)
+        volatility = max(float(row["modeled_iv"]) + iv_bump_points / 100, 0.01)
+        call_mid = inverse_option_price(
+            "call", forward=forward, strike=strike,
+            time_years=remaining_years, volatility=volatility,
+        )
+        put_mid = inverse_option_price(
+            "put", forward=forward, strike=strike,
+            time_years=remaining_years, volatility=volatility,
+        )
+        # A short position closes on the ask; the same relative half-spread the
+        # original mark used is recovered from its own mid and ask.
+        original_mid = float(row["close_mid_btc"])
+        original_ask = float(row["close_ask_btc"]) / contracts
+        relative_half_spread = (original_ask / original_mid - 1) if original_mid > 0 else 0.0
+        call_quote = synthetic_quote(call_mid, relative_half_spread=relative_half_spread)
+        put_quote = synthetic_quote(put_mid, relative_half_spread=relative_half_spread)
+        close_ask = (call_quote["ask_btc"] + put_quote["ask_btc"]) * contracts
+        cost = close_ask
+        if cost > best_cost:
+            best_cost = cost
+            best_index = index
+            best_payload = {
+                "forward_usd": forward,
+                "underlying_usd": float(row["underlying_usd"]) * (1 + gap_return),
+                "modeled_iv": volatility,
+                "call_mid_btc": call_mid,
+                "put_mid_btc": put_mid,
+                "close_mid_btc": call_mid + put_mid,
+                "close_ask_btc": close_ask,
+                "close_fees_btc": contracts
+                * (_option_fee(call_quote["ask_btc"]) + _option_fee(put_quote["ask_btc"])),
+                "gap_applied": True,
+                "gap_return": gap_return,
+            }
+
+    if best_index is not None and best_payload is not None:
+        for key, value in best_payload.items():
+            ordered.loc[best_index, key] = value
+    return ordered
+
+
 def evaluate_short_exit(
     marks: pd.DataFrame,
     *,

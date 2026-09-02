@@ -71,3 +71,11 @@ def test_synthetic_quote_respects_absolute_spread_floor_and_nonnegative_bid() ->
 
     assert quote["bid_btc"] == 0.0
     assert quote["ask_btc"] == pytest.approx(0.0007)
+
+
+def test_deep_out_of_money_price_never_turns_negative_from_cancellation() -> None:
+    price = inverse_option_price(
+        "call", forward=40_000, strike=120_000, time_years=1 / 365, volatility=0.20
+    )
+
+    assert price >= 0.0

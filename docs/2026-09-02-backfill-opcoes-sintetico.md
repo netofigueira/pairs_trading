@@ -1,7 +1,8 @@
 # Backfill sintético de opções BTC — desenho V1
 
 Data: 2026-09-02  
-Estado: envelope diário V1 executado; resultado exploratório; nada aprovado
+Estado: envelope diário V1 executado; teste adversarial de gap reprova o stop
+diário, sem refutar estatisticamente toda estratégia short-vol; nada aprovado
 para dinheiro real.
 
 ## Objetivo
@@ -131,6 +132,53 @@ e a média centrais, mas não melhora a cauda nesta resolução diária.
 Artefato completo: `artifacts/synthetic-option-backfill-v1.json` (cerca de
 1,9 MB), com 3.168 resultados individuais e 144 agregações.
 
+## Teste adversarial de gap
+
+O envelope diário não enxerga o movimento intradiário: um stop baseado em close
+não executa entre um candle e o próximo. Para medir a sensibilidade sem book
+intradiário, o runner ganhou um choque instantâneo (`inject_gap_shock`) com bump
+de IV acoplado. O choque é aplicado **uma vez em todo trade, no dia que produz o
+maior custo escolhido ex post**. Portanto é um stress adversarial deliberado,
+não uma simulação da frequência histórica dos eventos.
+
+As magnitudes usam os retornos close-to-close reais como referência. Em 2.069
+dias, o mínimo foi -16,52%, o P01 -8,99%, o máximo +21,22% e o P99 +8,26%.
+Houve 13 quedas de pelo menos 10% e nove altas de pelo menos 10%. O movimento
+close-to-close já pertence à trajetória-base; o choque é um evento adicional
+hipotético e não deve ser chamado de retorno overnight observado.
+
+```bash
+.venv/bin/python scripts/run_synthetic_option_backfill.py \
+  --gap-returns 0,-0.10,0.10,-0.15,0.15,-0.20,0.20 \
+  --gap-iv-bump 15 --summary-only \
+  --output artifacts/synthetic-option-backfill-gap-v1.json
+```
+
+Regra `tp50_stop2_dte3`, spread P50, sem choque adicional de IV/basis, nas 22
+datas com DVOL:
+
+| Gap | Positivas | P&L total | Retorno médio/crédito | Pior trade | Stops |
+|---:|---:|---:|---:|---:|---:|
+| 0 (sem gap) | 16/22 | +0,01925 BTC | +4,45% | -194,86% | 2 |
+| -10% | 9/22 | -0,08966 BTC | -68,59% | -434,10% | 10 |
+| +10% | 11/22 | -0,05605 BTC | -47,27% | -276,19% | 7 |
+| -15% | 4/22 | -0,23791 BTC | -158,19% | -575,03% | 16 |
+| +15% | 11/22 | -0,08643 BTC | -66,77% | -338,10% | 10 |
+| -20% | 3/22 | -0,38428 BTC | -242,58% | -733,65% | 18 |
+| +20% | 8/22 | -0,17155 BTC | -113,18% | -394,86% | 13 |
+
+Leitura: forçar um choque de 10% em cada posição torna ambos os lados negativos,
+e os stops executam muito além de 2x. Isso confirma que stop avaliado uma vez ao
+dia não controla a cauda. Não demonstra, porém, o retorno esperado da estratégia:
+o choque foi imposto em 100% dos trades e no pior dia ex post, enquanto eventos
+de 10% foram raros na amostra diária. Margem e liquidação agravariam perdas nos
+eventos, mas a frequência e o caminho ainda precisam ser modelados.
+
+O artefato `artifacts/synthetic-option-backfill-gap-v1.json` guarda as 1.008
+agregações em cerca de 374 KB. As linhas individuais foram omitidas desse
+artefato para não versionar aproximadamente 11 MB de dados repetitivos; o
+runner as regenera quando executado sem `--summary-only`.
+
 ## Decisão da rodada
 
 O envelope sustenta a hipótese de que existe prêmio a capturar, mas **não
@@ -139,7 +187,9 @@ pior cenário, porém sua média fica negativa e o stop diário permite gaps mui
 além de 2x. A regra mais apertada reduz a pior perda, mas destrói resultado sob
 estresse.
 
-O próximo gate não é procurar mais combinações de take-profit. É incorporar
-margem/liquidação e medir barreiras intradiárias ou, na ausência delas, aplicar
-um choque explícito de gap. Só depois faz sentido separar formação e validação
-temporal para escolher uma regra sem overfit.
+O próximo gate não é procurar mais combinações de take-profit. O stress reprova
+**esta implementação com stop diário** como controle de risco. Ele não basta para
+reprovar toda a hipótese de short straddle porque não pondera a frequência do
+choque. Qualquer retomada exige dados intradiários reais (book e barreiras), uma
+regra de sizing/margem e separação temporal entre formação e validação; mais
+variações de saída sobre candles diários criariam falsa precisão.

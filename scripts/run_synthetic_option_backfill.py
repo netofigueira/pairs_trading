@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections import Counter
 from pathlib import Path
 
@@ -13,6 +14,7 @@ import pandas as pd
 from quant_pairs.synthetic_option_backfill import (
     build_daily_straddle_marks,
     evaluate_short_exit,
+    inject_gap_shock,
     settle_short_straddle,
 )
 from quant_pairs.tardis_intraday import _option_fee
@@ -36,9 +38,31 @@ def main() -> None:
         "--carry-recovered", default="artifacts/tardis-carry-quarterly-v1-min-size-failures.json"
     )
     parser.add_argument("--output", default="artifacts/synthetic-option-backfill-v1.json")
+    parser.add_argument(
+        "--gap-returns",
+        default="0,-0.10,0.10,-0.15,0.15,-0.20,0.20",
+        help="Comma-separated close-to-close gap shocks applied to the forward. "
+        "0 reproduces the no-gap path. Empirical worst overnight BTC move is ~-16.5 pct.",
+    )
+    parser.add_argument(
+        "--gap-iv-bump",
+        type=float,
+        default=15.0,
+        help="Absolute IV points added at the gap instant for adverse tail repricing.",
+    )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Omit repeated per-trade scenario rows from the output artifact.",
+    )
     arguments = parser.parse_args()
     if arguments.contracts <= 0:
         parser.error("--contracts must be positive")
+    gap_returns = [float(value) for value in arguments.gap_returns.split(",")]
+    if any(not math.isfinite(value) or value <= -1 for value in gap_returns):
+        parser.error("every gap return must be finite and greater than -1")
+    if arguments.gap_iv_bump < 0:
+        parser.error("--gap-iv-bump must be non-negative")
 
     experiment = _read_json(arguments.experiment)
     calibration = _read_json(arguments.calibration)
@@ -61,6 +85,8 @@ def main() -> None:
                     experiment,
                     spread_scenarios,
                     contracts=arguments.contracts,
+                    gap_returns=gap_returns,
+                    gap_iv_bump=arguments.gap_iv_bump,
                 )
             )
         except ValueError as error:
@@ -87,7 +113,8 @@ def main() -> None:
             contracts=arguments.contracts,
             included_dates={row["date"] for row in results},
         ),
-        "results": results,
+        "results_omitted": arguments.summary_only,
+        "results": [] if arguments.summary_only else results,
         "assumptions": {
             "entry": "observed Tardis bid and displayed size >= 0.1 contract",
             "exit": "inverse Black-76 ask synthesized from empirical half-spread percentile",
@@ -96,6 +123,15 @@ def main() -> None:
             "daily_close_availability": "candle timestamp plus one day",
             "fees": "Deribit option fee approximation already used by carry pilot",
             "excluded": "margin, liquidation, intraday barrier breaches and dynamic hedge",
+            "gap_interpretation": (
+                "adversarial sensitivity: one forced shock on the ex-post most expensive "
+                "daily mark of every trade; not an empirical event frequency"
+            ),
+            "empirical_daily_tail_counts": {
+                "sample_days": 2069,
+                "return_lte_minus_10pct": 13,
+                "return_gte_plus_10pct": 9,
+            },
         },
     }
     serialized = json.dumps(payload, separators=(",", ":"), allow_nan=False)
@@ -114,6 +150,8 @@ def _run_entry(
     spread_scenarios: dict[str, float],
     *,
     contracts: float,
+    gap_returns: list[float],
+    gap_iv_bump: float,
 ) -> list[dict[str, object]]:
     if len(legs) != 2 or set(legs["option_type"]) != {"call", "put"}:
         raise ValueError("entry does not contain one call and one put")
@@ -144,29 +182,44 @@ def _run_entry(
                     basis_stress_bps=float(basis_stress),
                     contracts=contracts,
                 )
-                for rule in experiment["exit_rules"]:
-                    exit_result = evaluate_short_exit(
-                        marks,
-                        entry_credit_btc=entry_credit,
-                        profit_target=float(rule["profit_target"]),
-                        stop_multiple=float(rule["stop_multiple"]),
-                        exit_dte=float(rule["exit_dte"]),
+                for gap_return in gap_returns:
+                    gapped = (
+                        marks
+                        if gap_return == 0
+                        else inject_gap_shock(
+                            marks,
+                            strike=strike,
+                            gap_return=gap_return,
+                            iv_bump_points=gap_iv_bump,
+                            contracts=contracts,
+                        )
                     )
-                    net_pnl = float(exit_result["pnl_before_entry_fee_btc"]) - entry_fees
-                    results.append(
-                        {
-                            "date": str(date),
-                            "rule": rule["name"],
-                            "spread_scenario": spread_name,
-                            "iv_stress_points": iv_stress,
-                            "basis_stress_bps": basis_stress,
-                            "entry_credit_btc": entry_credit,
-                            "entry_fees_btc": entry_fees,
-                            **exit_result,
-                            "net_pnl_btc": net_pnl,
-                            "return_on_credit": net_pnl / entry_credit,
-                        }
-                    )
+                    for rule in experiment["exit_rules"]:
+                        exit_result = evaluate_short_exit(
+                            gapped,
+                            entry_credit_btc=entry_credit,
+                            profit_target=float(rule["profit_target"]),
+                            stop_multiple=float(rule["stop_multiple"]),
+                            exit_dte=float(rule["exit_dte"]),
+                        )
+                        net_pnl = (
+                            float(exit_result["pnl_before_entry_fee_btc"]) - entry_fees
+                        )
+                        results.append(
+                            {
+                                "date": str(date),
+                                "rule": rule["name"],
+                                "spread_scenario": spread_name,
+                                "iv_stress_points": iv_stress,
+                                "basis_stress_bps": basis_stress,
+                                "gap_return": gap_return,
+                                "entry_credit_btc": entry_credit,
+                                "entry_fees_btc": entry_fees,
+                                **exit_result,
+                                "net_pnl_btc": net_pnl,
+                                "return_on_credit": net_pnl / entry_credit,
+                            }
+                        )
     return results
 
 
@@ -175,7 +228,7 @@ def _summaries(results: list[dict[str, object]]) -> list[dict[str, object]]:
         return []
     frame = pd.DataFrame(results)
     rows: list[dict[str, object]] = []
-    keys = ["rule", "spread_scenario", "iv_stress_points", "basis_stress_bps"]
+    keys = ["rule", "spread_scenario", "iv_stress_points", "basis_stress_bps", "gap_return"]
     for values, group in frame.groupby(keys, sort=True):
         returns = group["return_on_credit"].to_numpy(dtype=float)
         pnl = group["net_pnl_btc"].to_numpy(dtype=float)

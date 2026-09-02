@@ -98,20 +98,21 @@ def funding_pnl_btc(
     start_utc, end_utc = _utc(start), _utc(end)
     if end_utc <= start_utc:
         raise ValueError("end must be after start")
+    if start_utc != start_utc.floor("h") or end_utc != end_utc.floor("h"):
+        raise ValueError("funding interval endpoints must be aligned to full UTC hours")
     window = funding.loc[
         (funding["timestamp"] > start_utc) & (funding["timestamp"] <= end_utc)
     ].sort_values("timestamp")
-    expected_hours = int((end_utc - start_utc) / pd.Timedelta(hours=1))
-    if len(window) < expected_hours:
+    expected_index = pd.date_range(
+        start_utc + pd.Timedelta(hours=1), end_utc, freq="h", tz="UTC"
+    )
+    if len(window) != len(expected_index):
         raise ValueError(
-            f"funding history covers {len(window)} of {expected_hours} hourly accruals"
+            f"funding history covers {len(window)} of {len(expected_index)} hourly accruals"
         )
-    gaps = window["timestamp"].diff().dropna()
-    if not gaps.eq(pd.Timedelta(hours=1)).all():
-        raise ValueError(
-            "funding history has an irregular cadence: "
-            f"gaps range from {gaps.min()} to {gaps.max()}"
-        )
+    observed_index = pd.DatetimeIndex(window["timestamp"])
+    if not observed_index.equals(expected_index):
+        raise ValueError("funding history is not aligned to the required hourly timestamps")
     position_btc = contracts * contract_size_usd / window["index_price"]
     return float(-(position_btc * window["interest_1h"]).sum())
 

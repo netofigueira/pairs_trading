@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import urlopen
@@ -12,6 +13,29 @@ TARDIS_DATASETS_BASE_URL = "https://datasets.tardis.dev/v1"
 
 class TardisDataError(RuntimeError):
     """A Tardis sample could not be retrieved or stored."""
+
+
+def sample_months(start: str, end: str, *, step: int = 1) -> list[str]:
+    """Return inclusive YYYY-MM sample points with a fixed month step."""
+
+    if step <= 0:
+        raise ValueError("month step must be positive")
+    try:
+        start_year, start_month = (int(piece) for piece in start.split("-"))
+        end_year, end_month = (int(piece) for piece in end.split("-"))
+        date(start_year, start_month, 1)
+        date(end_year, end_month, 1)
+    except ValueError as error:
+        raise ValueError("month must use YYYY-MM") from error
+    if (end_year, end_month) < (start_year, start_month):
+        raise ValueError("end must not precede start")
+    months: list[str] = []
+    year, month = start_year, start_month
+    while (year, month) <= (end_year, end_month):
+        months.append(date(year, month, 1).strftime("%Y-%m"))
+        for _ in range(step):
+            year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return months
 
 
 def dataset_url(exchange: str, data_type: str, date: str, symbol: str) -> str:

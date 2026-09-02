@@ -89,7 +89,31 @@ def test_funding_pnl_rejects_irregular_cadence() -> None:
         }
     )
 
-    with pytest.raises(ValueError, match="irregular cadence"):
+    with pytest.raises(ValueError, match="not aligned"):
         funding_pnl_btc(
             funding, contracts=100, start=start, end=start + pd.Timedelta(hours=4)
+        )
+
+
+def test_funding_pnl_rejects_offset_hourly_rows_and_partial_endpoints() -> None:
+    start = pd.Timestamp("2024-01-01T12:00:00Z")
+    funding = pd.DataFrame(
+        {
+            "timestamp": [start + pd.Timedelta(minutes=30, hours=i) for i in range(4)],
+            "index_price": [40_000.0] * 4,
+            "interest_1h": [1e-4] * 4,
+            "interest_8h": [8e-4] * 4,
+        }
+    )
+
+    with pytest.raises(ValueError, match="not aligned"):
+        funding_pnl_btc(
+            funding, contracts=100, start=start, end=start + pd.Timedelta(hours=4)
+        )
+    with pytest.raises(ValueError, match="endpoints"):
+        funding_pnl_btc(
+            funding,
+            contracts=100,
+            start=start + pd.Timedelta(minutes=30),
+            end=start + pd.Timedelta(hours=4),
         )

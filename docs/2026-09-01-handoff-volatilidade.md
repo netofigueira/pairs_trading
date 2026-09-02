@@ -178,6 +178,23 @@ Desenho e limitações: `docs/2026-09-02-backfill-opcoes-sintetico.md`.
 
 Metodologia: `docs/2026-09-02-bootstrap-distribuicao-perda.md`.
 
+### P2 — forecast diário e monitor
+
+- Forecast de RV futura em 14/30 dias com rolling 30d, EWMA lambda 0,94 e
+  GARCH(1,1) expanding-window/reestimado a cada 30 dias.
+- Em targets não sobrepostos, GARCH venceu MSE e QLIKE nos dois horizontes, mas
+  superestimou a RV média em cerca de 7,5--8 pontos de vol. O sinal existe, mas
+  requer calibração; não é justificativa para operar.
+- Snapshot comum em 2026-09-01 08:00 UTC: DVOL 37,63%, GARCH 51,18% em 14d e
+  52,09% em 30d. O gap negativo é apenas candidato long-vol, pois DVOL não é IV
+  ask executável do contrato 14d.
+- API `/api/v1/volatility/forecast` e painel `/volatility` integrados. A rotina
+  diária ainda é manual; não existe scheduler nem envio de ordens.
+- Próximo gate: calibrar viés e thresholds long/short/flat em formação temporal,
+  preservando um holdout econômico.
+
+Detalhes: `docs/2026-09-02-forecast-volatilidade.md`.
+
 O carry até o vencimento contorna a falta de quotes contínuos de opções: só a
 entrada exige book executável (Tardis gratuito no dia 1 de cada mês); payoff,
 hedge e funding vêm de APIs públicas. Rebalancear o hedge no meio do caminho
@@ -212,6 +229,8 @@ continua exigindo dados pagos ou coleta própria.
   distribuição condicional de perda.
 - `scripts/run_short_straddle_bootstrap.py`: reproduz 10.000 trajetórias por
   entrada com seed estável.
+- `src/quant_pairs/volatility_forecast.py`: forecasts leakage-safe e métricas.
+- `scripts/forecast_btc_volatility.py`: gera o artefato diário do monitor.
 - `src/quant_pairs/static/volatility.html`: página autocontida de pesquisa.
 - `docs/2026-09-01-piloto-carry-trimestral.md`: desenho, resultado e decisão do
   gate trimestral long-only.

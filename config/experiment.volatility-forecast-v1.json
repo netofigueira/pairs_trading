@@ -1,0 +1,24 @@
+{
+  "experiment_id": "btc-volatility-forecast-v1",
+  "declared_at": "2026-09-02",
+  "target": "annualized realized variance of future BTC-PERPETUAL log returns",
+  "horizons_days": [14, 30],
+  "availability": "daily candle close available at interval timestamp plus one day",
+  "minimum_training_days": 365,
+  "models": {
+    "rolling": {"window_days": 30},
+    "ewma": {"lambda": 0.94},
+    "garch": {"order": [1, 1], "mean": "zero", "refit_days": 30}
+  },
+  "evaluation": {
+    "primary": ["qlike", "mse_variance"],
+    "diagnostic": ["rv_correlation", "mean_forecast_rv"],
+    "report_daily_overlapping": true,
+    "report_non_overlapping": true
+  },
+  "signal_policy": {
+    "states": ["long_vol_candidate", "short_vol_candidate", "flat"],
+    "status": "diagnostic_only",
+    "reason": "execution thresholds, normal VRP and option bid/ask validation are not calibrated"
+  }
+}

@@ -72,6 +72,19 @@ def volatility_research() -> dict[str, object]:
         raise HTTPException(status_code=503, detail=f"volatility report unavailable: {error}") from error
 
 
+@app.get("/api/v1/volatility/forecast")
+def volatility_forecast() -> dict[str, object]:
+    path = Path(
+        os.environ.get(
+            "QUANT_PAIRS_VOLATILITY_FORECAST", "artifacts/btc-volatility-forecast-v1.json"
+        )
+    )
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=503, detail=f"volatility forecast unavailable: {error}") from error
+
+
 def _rows(query: str, parameters: tuple[object, ...] = ()) -> list[dict[str, object]]:
     with psycopg.connect(_database_url()) as connection:
         with connection.cursor() as cursor:

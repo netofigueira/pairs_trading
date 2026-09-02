@@ -45,6 +45,12 @@ os 6,7 GB de quotes brutos no acesso e contém:
 Os gráficos usam SVG e JavaScript locais, sem dependência de CDN. A API de
 leitura correspondente é `/api/v1/volatility/research`.
 
+O monitor diário de forecast consome também
+`artifacts/btc-volatility-forecast-v1.json` pela rota
+`/api/v1/volatility/forecast`. A página exibe DVOL, forecasts rolling/EWMA/GARCH
+de 14 e 30 dias, gap em variância e métricas históricas não sobrepostas. Gap não
+é ordem: thresholds executáveis e VRP normal ainda não estão calibrados.
+
 ## Tecnologia e fronteiras
 
 O próximo serviço será uma API Python de leitura sobre o pacote `quant_pairs` e TimescaleDB; o frontend poderá iniciar com Plotly para velocidade, mas com API separada para permitir uma UI web mais completa depois. n8n entra para alertas, agendas de coleta e notificações — não para calcular sinais críticos ou executar ordens.

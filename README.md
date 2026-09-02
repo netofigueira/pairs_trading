@@ -135,6 +135,16 @@ mudança do DVOL em blocos, sem adicionar gaps à trajetória histórica:
 O resultado não é probabilidade de ruína, pois ainda não inclui capital,
 sizing, margem ou liquidação. Veja a [metodologia do bootstrap](docs/2026-09-02-bootstrap-distribuicao-perda.md).
 
+O monitor de forecast compara RV rolling, EWMA e GARCH(1,1) nos horizontes de
+14 e 30 dias. Ele publica o último snapshot em `/volatility`, sem convertê-lo
+automaticamente em ordem:
+
+```bash
+.venv/bin/python scripts/forecast_btc_volatility.py
+```
+
+Metodologia e rotina diária: [forecast de volatilidade V1](docs/2026-09-02-forecast-volatilidade.md).
+
 Uma cross-section intraday pode validar seleção ATM, continuidade do mesmo
 contrato e fills ask/bid. Com `options_chain`, o runner usa deltas observados
 no mesmo instante para neutralizar a entrada com BTC-PERPETUAL. O líquido final

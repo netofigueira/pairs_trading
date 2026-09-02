@@ -46,6 +46,30 @@ def test_reconstruction_can_exclude_stale_books(tmp_path) -> None:
     assert books["symbol"].tolist() == ["FRESH"]
 
 
+def test_reconstruction_does_not_let_fresh_ask_mask_stale_bid(tmp_path) -> None:
+    path = tmp_path / "quotes.csv.gz"
+    pd.DataFrame(
+        {
+            "exchange": ["deribit", "deribit"],
+            "symbol": ["STALE_BID", "STALE_BID"],
+            "timestamp": [1_000_000, 10_000_000],
+            "local_timestamp": [1_100_000, 10_100_000],
+            "ask_amount": [2.0, 4.0],
+            "ask_price": [0.02, 0.021],
+            "bid_price": [0.019, None],
+            "bid_amount": [3.0, None],
+        }
+    ).to_csv(path, index=False, compression="gzip")
+
+    books = reconstruct_top_of_book(
+        path,
+        as_of=pd.Timestamp("1970-01-01T00:00:10Z"),
+        max_age=pd.Timedelta(seconds=2),
+    )
+
+    assert books.empty
+
+
 def test_reconstruction_rejects_a_missing_book_side(tmp_path) -> None:
     path = tmp_path / "quotes.csv.gz"
     pd.DataFrame(

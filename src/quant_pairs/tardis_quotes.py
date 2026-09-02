@@ -50,7 +50,9 @@ def reconstruct_top_of_book(
             latest.get("events"), chunk[["symbol", "timestamp", "local_timestamp"]]
         )
         for field in ("bid_price", "bid_amount", "ask_price", "ask_amount"):
-            updates = chunk.loc[chunk[field].notna(), ["symbol", field]]
+            updates = chunk.loc[chunk[field].notna(), ["symbol", "timestamp", field]].rename(
+                columns={"timestamp": f"{field}_timestamp"}
+            )
             latest[field] = _latest_per_symbol(latest.get(field), updates)
     if "events" not in latest:
         return pd.DataFrame(columns=sorted(REQUIRED_COLUMNS))
@@ -63,6 +65,8 @@ def reconstruct_top_of_book(
     frame["local_timestamp"] = pd.to_datetime(frame["local_timestamp"], unit="us", utc=True)
     for field in ("bid_price", "bid_amount", "ask_price", "ask_amount"):
         frame[field] = pd.to_numeric(frame[field], errors="coerce")
+        timestamp_field = f"{field}_timestamp"
+        frame[timestamp_field] = pd.to_datetime(frame[timestamp_field], unit="us", utc=True)
     valid = (
         frame["bid_price"].gt(0)
         & frame["ask_price"].gt(0)
@@ -72,7 +76,9 @@ def reconstruct_top_of_book(
     )
     if max_age is not None:
         reference = _utc(as_of) if as_of is not None else frame["timestamp"].max()
-        valid &= frame["timestamp"].ge(reference - max_age)
+        cutoff = reference - max_age
+        for field in ("bid_price", "bid_amount", "ask_price", "ask_amount"):
+            valid &= frame[f"{field}_timestamp"].ge(cutoff)
     return frame.loc[valid].sort_values("symbol").reset_index(drop=True)
 
 

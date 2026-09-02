@@ -98,7 +98,17 @@ def test_intraday_runner_uses_observed_deltas_for_inverse_perp_hedge(tmp_path) -
         ]
     ).to_csv(chain_path, index=False, compression="gzip")
 
-    result = run_intraday_straddle(
+    hours = int((exit_ - entry) / pd.Timedelta(hours=1))
+    funding = pd.DataFrame(
+        {
+            "timestamp": [entry + pd.Timedelta(hours=i) for i in range(1, hours + 1)],
+            "index_price": [42_000.0] * hours,
+            "interest_1h": [1e-5] * hours,
+            "interest_8h": [8e-5] * hours,
+        }
+    )
+
+    unfunded = run_intraday_straddle(
         option_path,
         perp_path,
         entry_at=entry,
@@ -106,8 +116,25 @@ def test_intraday_runner_uses_observed_deltas_for_inverse_perp_hedge(tmp_path) -
         max_age=pd.Timedelta(seconds=1),
         options_chain_path=chain_path,
     )
+    result = run_intraday_straddle(
+        option_path,
+        perp_path,
+        entry_at=entry,
+        exit_at=exit_,
+        max_age=pd.Timedelta(seconds=1),
+        options_chain_path=chain_path,
+        funding=funding,
+    )
 
-    assert result["status"] == "delta_hedged_intraday_plumbing_missing_funding"
+    assert unfunded["status"] == "delta_hedged_intraday_plumbing_missing_funding"
+    assert unfunded["net_delta_hedged_pnl_btc"] is None
+    assert result["status"] == "delta_hedged_intraday_with_funding"
+    # short hedge receives positive funding
+    assert result["funding_pnl_btc"] == pytest.approx(420 * 10 / 42_000 * 1e-5 * hours)
+    assert result["net_delta_hedged_pnl_btc"] == pytest.approx(
+        result["net_delta_hedged_before_funding_btc"] + result["funding_pnl_btc"]
+    )
+    result = unfunded
     assert result["entry_option_delta_btc"] == pytest.approx(0.1)
     assert result["hedge_contracts"] == -420
     assert abs(result["entry_residual_delta_btc"]) < 1e-12

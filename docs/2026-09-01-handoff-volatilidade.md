@@ -71,21 +71,54 @@ Comandos:
   --with-options-chain
 ```
 
+### P1.5 — carry até o vencimento com dados 100% gratuitos
+
+- Validado que a API pública da Deribit fornece `get_delivery_prices` (2.595
+  registros diários, desde ~2019) e `get_funding_rate_history` (funding horário
+  para datas antigas). Isso fecha payoff e funding sem provedor pago.
+- `funding.py`: histórico horário paginado em janelas de 30 dias, cache CSV e
+  `funding_pnl_btc` para perp inverso (long paga funding positivo; cobertura
+  horária incompleta é rejeitada, não silenciada).
+- `settlement.py`: delivery prices paginados com cache, payoff inverso
+  (`max(0, S−K)/S`) e fee de liquidação (0,015% do subjacente, cap de 12,5% do
+  valor da opção; OTM não paga).
+- O runner intraday agora aceita `funding` e preenche
+  `net_delta_hedged_pnl_btc` (status `delta_hedged_intraday_with_funding`).
+- `tardis_carry.py` + `scripts/run_tardis_carry.py`: entrada no ask real da
+  Tardis, hold até o vencimento, saída pelo preço oficial de liquidação, com
+  duas variantes: sem hedge e hedge estático pelo delta observado na entrada,
+  carregado até o settle com funding horário. A saída do hedge usa o
+  delivery price como fill (aproximação declarada: não há book do perp no
+  vencimento nas amostras gratuitas).
+- Resultado real de 2024-01-01 (straddle BTC-12JAN24-43000, 10,8 dias):
+  prêmio de entrada 0,093 BTC, payoff 0,06405 BTC, hedge -286 contratos,
+  funding +0,000262 BTC; líquido sem hedge -0,029699 BTC e com hedge estático
+  **-0,034211 BTC**. Uma observação; sem significado estatístico.
+
+Comandos:
+
+```bash
+.venv/bin/python scripts/run_tardis_carry.py --date 2024-01-01 --with-options-chain
+.venv/bin/python scripts/run_tardis_intraday.py --date 2024-01-01 \
+  --entry-time 12:00:00 --exit-time 20:00:00 --with-options-chain --with-funding
+```
+
 ## Próximo passo exato
 
-Completar a contabilidade e tornar a amostra mensal eficiente:
-
-1. Integrar funding histórico do BTC-PERPETUAL no intervalo; até isso, não
-   preencher `net_delta_hedged_pnl_btc`.
-2. Extrair/cachear somente Greeks necessários do `options_chain` de 1,87 GB,
+1. Baixar os primeiros dias mensais de 2019-05 até hoje
+   (`collect_tardis_monthly_samples.py`) e rodar `run_tardis_carry.py` em todos,
+   nas duas variantes, medindo cobertura e falhas por mês.
+2. Extrair/cachear somente Greeks necessários do `options_chain` (1,87 GB/dia),
    evitando redescompactar metade do dia a cada cenário.
-3. Rodar múltiplas janelas intraday pré-declaradas nos primeiros dias mensais
-   gratuitos e medir cobertura/falhas, sem tratar as observações como backtest
-   de carry de 7--30 dias.
+3. Analisar a amostra completa (~75-80 meses) como gate de viabilidade,
+   declarando: só entradas no dia 1, hedge estático mistura gamma do caminho
+   com prêmio de vol, saída do hedge aproximada pelo delivery price, amostra
+   pequena e viés de calendário.
 
-Este runner é apenas validação de dados e execução intraday. As amostras
-mensais não permitem avaliar carregar opções por 7--30 dias. Um backtest
-contínuo requer quotes históricos pagos ou coleta própria acumulada.
+O carry até o vencimento contorna a falta de quotes contínuos de opções: só a
+entrada exige book executável (Tardis gratuito no dia 1 de cada mês); payoff,
+hedge e funding vêm de APIs públicas. Rebalancear o hedge no meio do caminho
+continua exigindo dados pagos ou coleta própria.
 
 ## Arquivos relevantes
 
@@ -95,6 +128,11 @@ contínuo requer quotes históricos pagos ou coleta própria acumulada.
 - `src/quant_pairs/tardis_options.py`: parser de contrato e seleção ATM.
 - `src/quant_pairs/tardis_intraday.py`: round-trip intraday executável com
   delta observado, hedge inverso no perp e líquido final bloqueado sem funding.
+- `src/quant_pairs/funding.py`: funding público horário + P&L de funding.
+- `src/quant_pairs/settlement.py`: delivery prices oficiais, payoff e fee.
+- `src/quant_pairs/tardis_carry.py`: carry até o vencimento (sem hedge e
+  hedge estático).
+- `scripts/run_tardis_carry.py`: CLI do gate de carry mensal.
 - `scripts/run_tardis_intraday.py`: CLI do gate intraday.
 - `scripts/inspect_tardis_quotes.py`: auditor de livros executáveis.
 - `docs/2026-08-31-roadmap-pesquisa-quant-cripto.md`: diário completo e

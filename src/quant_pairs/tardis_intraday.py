@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from quant_pairs.funding import funding_pnl_btc
 from quant_pairs.tardis_options import select_atm_straddle
 from quant_pairs.tardis_quotes import reconstruct_top_of_book
 
@@ -27,6 +28,7 @@ def run_intraday_straddle(
     contracts: float = 1.0,
     options_chain_path: Path | str | None = None,
     perp_taker_fee_rate: float = DEFAULT_PERP_TAKER_FEE_RATE,
+    funding: pd.DataFrame | None = None,
 ) -> dict[str, object]:
     """Simulate one long ATM straddle with executable top-of-book fills.
 
@@ -156,6 +158,19 @@ def run_intraday_straddle(
                 ),
             }
         )
+        if funding is not None:
+            funding_pnl = funding_pnl_btc(
+                funding, contracts=hedge_contracts, start=entry, end=exit_
+            )
+            result.update(
+                {
+                    "status": "delta_hedged_intraday_with_funding",
+                    "funding_pnl_btc": funding_pnl,
+                    "net_delta_hedged_pnl_btc": (
+                        total_gross - total_spread - total_fees + funding_pnl
+                    ),
+                }
+            )
     return result
 
 

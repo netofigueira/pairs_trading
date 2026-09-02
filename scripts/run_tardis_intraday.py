@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from quant_pairs.funding import load_funding_history
 from quant_pairs.tardis_intraday import run_intraday_straddle
 
 
@@ -22,9 +23,22 @@ def main() -> None:
     parser.add_argument("--max-dte", type=int, default=30)
     parser.add_argument("--contracts", type=float, default=1.0)
     parser.add_argument("--with-options-chain", action="store_true")
+    parser.add_argument("--with-funding", action="store_true")
+    parser.add_argument("--funding-cache-root", default="data/market/deribit/funding")
     parser.add_argument("--perp-taker-fee-rate", type=float, default=0.0005)
     arguments = parser.parse_args()
     root = Path(arguments.data_root) / "deribit" / "quotes" / arguments.date
+    funding = None
+    if arguments.with_funding:
+        if not arguments.with_options_chain:
+            raise SystemExit("--with-funding requires --with-options-chain")
+        funding = load_funding_history(
+            "BTC-PERPETUAL",
+            start=pd.Timestamp(f"{arguments.date}T00:00:00Z"),
+            end=pd.Timestamp(f"{arguments.date}T00:00:00Z") + pd.Timedelta(days=1),
+            cache_path=Path(arguments.funding_cache_root)
+            / f"BTC-PERPETUAL-{arguments.date}.csv",
+        )
     result = run_intraday_straddle(
         root / "OPTIONS.csv.gz",
         root / "BTC-PERPETUAL.csv.gz",
@@ -44,6 +58,7 @@ def main() -> None:
             else None
         ),
         perp_taker_fee_rate=arguments.perp_taker_fee_rate,
+        funding=funding,
     )
     print(json.dumps(result, indent=2))
 

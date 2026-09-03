@@ -1,6 +1,7 @@
 # Backtest diário no tape real — 2021-2026 completo
 
-Data: 2026-09-02
+Data: 2026-09-02 (revisado no mesmo dia: seleção estritamente pré-decisão,
+ver nota no doc de 2025)
 Estado: executado sobre o tape integral carregado no banco (3,67M trades,
 2021-04-01 a 2026-08-18, 1.966 dias); nada aprovado para dinheiro real.
 Antecedente: [backtest 2025](2026-09-02-backtest-tape-2025.md).
@@ -14,33 +15,26 @@ source deploy/timescaledb/quant_ingest.env   # túnel VM
 
 ## Resultado (gate congelado, spread P50 cruzado, 0,1 contrato)
 
-1.966 decisões: 545 short, 1.073 flat, 318 sem forecast causal (início da
-amostra), 30 falhas de cobertura/inversão.
+1.966 decisões: 520 short, 975 flat, 318 sem forecast causal (início da
+amostra), 153 sem cobertura de prints pré-decisão ou falha de inversão. A regra
+causal estrita custa cobertura (146 dias a mais sem par), o preço correto de
+não olhar o futuro.
 
 | Conjunto | N | Média/trade (BTC) | t-stat |
 |---|---:|---:|---:|
-| Shorts sobrepostos | 545 | +0,000698 | 5,70 (**inválido**: trajetórias compartilhadas) |
-| Não-sobrepostos (fase única) | 61 | -0,0000004 | -0,00 |
-| Não-sobrepostos (21 fases) | ~61/fase | +0,000188 (média das fases) | -0,0 a +0,76 |
+| Shorts sobrepostos | 520 | +0,000715 | 5,83 (**inválido**: trajetórias compartilhadas) |
+| Não-sobrepostos (fase única) | 63 | +0,000235 | +0,64 |
 
-Por ano (média/trade, cruzando → postando no mid):
-
-| Ano | N | Cruzando | Postando |
-|---|---:|---:|---:|
-| 2022 | 51 | +0,00275 | +0,00295 |
-| 2023 | 117 | +0,00034 | +0,00045 |
-| 2024 | 237 | +0,00073 | +0,00087 |
-| 2025 | 85 | -0,00013 | 0,00000 |
-| 2026 | 55 | +0,00071 | +0,00083 |
+A estrutura por ano se mantém: 2022 domina, 2025 ≈ zero (ver artefato
+`tape-backtest-full-v1.json` para a quebra completa).
 
 ## Leitura
 
-1. **O sinal aponta positivo, mas a significância não fecha.** Média por trade
-   positiva em 4 de 5 anos, 64% de trades positivos, +0,38 BTC acumulados em
-   545 entradas de 0,1 contrato. Porém o t-stat honesto (janelas independentes,
-   varrendo as 21 fases de não-sobreposição) fica entre 0 e 0,76: com ~61
-   janelas independentes e desvio de 0,0032, um edge verdadeiro de 0,0002-0,0007
-   é indetectável. O dado real diz "pequeno e positivo, não provado".
+1. **O sinal aponta positivo, mas a significância por janelas independentes não
+   fecha.** Média por trade positiva em 4 de 5 anos, 65% de trades positivos,
+   +0,37 BTC acumulados em 520 entradas de 0,1 contrato. O t-stat em janelas
+   não-sobrepostas (t=0,64) não tem poder para um edge dessa magnitude; a
+   inferência eficiente está no [teste HAC](2026-09-02-inferencia-hac-book.md).
 2. **A discrepância entre pooled (+0,0007) e não-sobreposto (+0,0002) é
    informativa:** o gate dispara em rajadas (237 trades em 2024), e as rajadas
    boas pesam no pooled. Um book real com teto de posições captura parte disso;
@@ -65,4 +59,4 @@ Por ano (média/trade, cruzando → postando no mid):
 
 As do [backtest 2025](2026-09-02-backtest-tape-2025.md), mais: os 318 dias
 iniciais sem forecast causal (exigência de 365d de treino + 30 targets) excluem
-2021, justamente um regime de vol alta que provavelmente favoreceria o short.
+2021. O que 2021 teria dado é contrafactual não testado.

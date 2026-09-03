@@ -21,14 +21,16 @@ def select_daily_straddle_prints(
     min_dte: float = 7.0,
     max_dte: float = 30.0,
     target_dte: float = 14.0,
+    max_age: pd.Timedelta = pd.Timedelta(hours=2),
 ) -> pd.DataFrame:
     """Pick one call and one put print at a common ATM strike near the target DTE.
 
+    Strictly causal: only prints with ``traded_at <= decision_at`` and no older
+    than ``max_age`` are eligible; per leg, the LAST pre-decision print wins.
     ``trades`` needs columns ``instrument_name, traded_at, price, iv,
     index_price``.  Tenor is chosen first (expiry nearest ``target_dte`` among
     those with both sides pairable), then the strike nearest the index price of
-    the latest print at or before the decision; per leg, the print closest in
-    time to the decision wins.  Returns an empty frame when no pair exists.
+    the latest pre-decision print.  Returns an empty frame when no pair exists.
     """
 
     required = {"instrument_name", "traded_at", "price", "iv", "index_price"}
@@ -38,9 +40,16 @@ def select_daily_straddle_prints(
     decision = _utc(decision_at)
     if not min_dte <= target_dte <= max_dte:
         raise ValueError("target_dte must lie within the DTE bounds")
+    if max_age <= pd.Timedelta(0):
+        raise ValueError("max_age must be positive")
 
     frame = trades.copy()
     frame["traded_at"] = pd.to_datetime(frame["traded_at"], utc=True)
+    frame = frame.loc[
+        (frame["traded_at"] <= decision) & (frame["traded_at"] >= decision - max_age)
+    ]
+    if frame.empty:
+        return pd.DataFrame()
     parsed = frame["instrument_name"].map(_parse_option)
     frame = frame.loc[parsed.notna()].copy()
     frame[["expiry", "type", "strike"]] = pd.DataFrame(parsed.dropna().tolist(), index=frame.index)
@@ -50,8 +59,8 @@ def select_daily_straddle_prints(
     if frame.empty:
         return pd.DataFrame()
 
-    # ATM reference: the index price of the print closest to the decision.
-    reference = frame.loc[(frame["traded_at"] - decision).abs().idxmin(), "index_price"]
+    # ATM reference: the index price of the latest pre-decision print.
+    reference = frame.loc[frame["traded_at"].idxmax(), "index_price"]
     pairable = frame.groupby(["expiry", "strike"])["type"].nunique()
     pairable = pairable[pairable == 2].reset_index()
     if pairable.empty:
@@ -72,7 +81,7 @@ def select_daily_straddle_prints(
             & (frame["strike"] == chosen_strike)
             & (frame["type"] == option_type)
         ]
-        pick = side.loc[(side["traded_at"] - decision).abs().idxmin()]
+        pick = side.loc[side["traded_at"].idxmax()]
         legs.append(
             {
                 "instrument_name": pick["instrument_name"],
@@ -81,7 +90,7 @@ def select_daily_straddle_prints(
                 "expiry": pd.Timestamp(chosen_expiry),
                 "dte": float((pd.Timestamp(chosen_expiry) - decision).total_seconds() / 86_400),
                 "traded_at": pick["traded_at"],
-                "seconds_from_decision": float(abs((pick["traded_at"] - decision).total_seconds())),
+                "seconds_from_decision": float((decision - pick["traded_at"]).total_seconds()),
                 "print_price_btc": float(pick["price"]),
                 "print_iv": float(pick["iv"]) / 100.0,
                 "index_price": float(pick["index_price"]),

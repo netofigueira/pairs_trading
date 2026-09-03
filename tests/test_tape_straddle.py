@@ -19,16 +19,19 @@ def _trade(instrument: str, minutes_off: int, price: float, iv: float, index: fl
 def test_selects_pairable_atm_strike_near_target_dte() -> None:
     trades = pd.DataFrame(
         [
-            # 14 DTE expiry, two strikes; only 100k is pairable.
+            # 14 DTE expiry, two strikes; only 100k is pairable pre-decision.
             _trade("BTC-24JUN25-100000-C", -30, 0.045, 52.0),
-            _trade("BTC-24JUN25-100000-C", 5, 0.046, 52.5),
-            _trade("BTC-24JUN25-100000-P", 20, 0.044, 51.0),
-            _trade("BTC-24JUN25-95000-P", 1, 0.02, 50.0),
+            _trade("BTC-24JUN25-100000-C", -5, 0.046, 52.5),
+            _trade("BTC-24JUN25-100000-C", 5, 0.050, 60.0),  # future: must be ignored
+            _trade("BTC-24JUN25-100000-P", -20, 0.044, 51.0),
+            _trade("BTC-24JUN25-95000-P", -1, 0.02, 50.0),
             # nearer expiry pairable but further from 14 DTE target
-            _trade("BTC-13JUN25-100000-C", 2, 0.02, 55.0),
-            _trade("BTC-13JUN25-100000-P", 3, 0.019, 54.0),
+            _trade("BTC-13JUN25-100000-C", -2, 0.02, 55.0),
+            _trade("BTC-13JUN25-100000-P", -3, 0.019, 54.0),
             # out of DTE bounds
-            _trade("BTC-26SEP25-100000-C", 4, 0.11, 60.0),
+            _trade("BTC-26SEP25-100000-C", -4, 0.11, 60.0),
+            # older than max_age: must be ignored
+            _trade("BTC-24JUN25-100000-P", -180, 0.060, 70.0),
         ]
     )
     legs = select_daily_straddle_prints(trades, decision_at=DECISION)
@@ -37,15 +40,16 @@ def test_selects_pairable_atm_strike_near_target_dte() -> None:
     assert (legs["strike"] == 100_000.0).all()
     assert legs["instrument_name"].str.contains("24JUN25").all()
     call = legs.loc[legs["type"] == "call"].iloc[0]
-    assert call["print_price_btc"] == 0.046  # the print closest to the decision
+    assert call["print_price_btc"] == 0.046  # the LAST pre-decision print
     assert call["print_iv"] == pytest.approx(0.525)
+    assert (legs["seconds_from_decision"] >= 0).all()
 
 
 def test_empty_when_no_pairable_strike() -> None:
     trades = pd.DataFrame(
         [
             _trade("BTC-24JUN25-100000-C", 0, 0.045, 52.0),
-            _trade("BTC-24JUN25-95000-P", 1, 0.02, 50.0),
+            _trade("BTC-24JUN25-95000-P", -1, 0.02, 50.0),
         ]
     )
     assert select_daily_straddle_prints(trades, decision_at=DECISION).empty
@@ -55,7 +59,7 @@ def test_short_entry_discounts_prints_and_inverts_bid_iv() -> None:
     trades = pd.DataFrame(
         [
             _trade("BTC-24JUN25-100000-C", 0, 0.045, 52.0),
-            _trade("BTC-24JUN25-100000-P", 1, 0.044, 51.0),
+            _trade("BTC-24JUN25-100000-P", -1, 0.044, 51.0),
         ]
     )
     legs = select_daily_straddle_prints(trades, decision_at=DECISION)

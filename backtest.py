@@ -1,237 +1,314 @@
+"""Event-driven, single-pair backtest with conservative execution assumptions."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from typing import Literal
+
 import pandas as pd
-from pair_trading import PairCointegration
-import yfinance as yf
-import numpy as np
-import math
-import matplotlib.pyplot as plt
-from statsmodels.tsa.stattools import adfuller
-from utils import tickers_yf
-import itertools
-#### backtest de um par cointegrado
 
-#### 1 - de maneira sequencial, buscar sinal de entrada
+from .cointegration import FormationModel
 
-"""
-        12M               1M 
-    aval. cointegracao |  trade 
-    ++++++++++++++++++ |  -----
-                       | aval. cointegracao | trade
-                         ++++++++++++++++++ | trade
-"""
+ExitReason = Literal["mean_reversion", "stop_loss", "time_stop", "end_of_data"]
+SignalScale = Literal["formation", "ewma", "rolling", "half_life_rolling"]
 
 
+@dataclass(frozen=True)
+class BacktestConfig:
+    """All values are explicit so research runs remain comparable."""
+
+    entry_z: float = 2.0
+    exit_z: float = 0.5
+    stop_z: float = 4.0
+    max_holding_bars: int = 72
+    gross_notional: float = 1.0
+    taker_fee_bps: float = 5.0
+    slippage_bps: float = 1.0
+    signal_scale: SignalScale = "formation"
+    volatility_span_bars: int = 72
+
+    def __post_init__(self) -> None:
+        if not 0 < self.exit_z < self.entry_z < self.stop_z:
+            raise ValueError("require exit_z < entry_z < stop_z")
+        if self.max_holding_bars <= 0 or self.gross_notional <= 0:
+            raise ValueError("max_holding_bars and gross_notional must be positive")
+        if self.taker_fee_bps < 0 or self.slippage_bps < 0:
+            raise ValueError("costs cannot be negative")
+        if self.signal_scale not in {"formation", "ewma", "rolling", "half_life_rolling"}:
+            raise ValueError("signal_scale must be formation, ewma, rolling, or half_life_rolling")
+        if self.volatility_span_bars < 2:
+            raise ValueError("volatility_span_bars must be at least two")
+
+    @property
+    def cost_rate(self) -> float:
+        return (self.taker_fee_bps + self.slippage_bps) / 10_000
 
 
-def get_entries(resid, half_life, tresh, pair1, pair2, data):
+@dataclass(frozen=True)
+class PairTrade:
+    direction: int
+    entry_time: pd.Timestamp
+    exit_time: pd.Timestamp
+    entry_y: float
+    entry_x: float
+    exit_y: float
+    exit_x: float
+    qty_y: float
+    qty_x: float
+    exit_reason: ExitReason
+    gross_pnl: float
+    trading_cost: float
+    funding_pnl: float
+    net_pnl: float
+    gross_return: float
+    holding_bars: int
 
 
-    aux = resid.reset_index()
-    aux_total = data.reset_index()
-    up_entries = aux[aux[0] >= tresh].index
-    out_idx = np.asarray([i+ half_life for i in up_entries])
+@dataclass(frozen=True)
+class BacktestResult:
+    trades: pd.DataFrame
+    zscores: pd.Series
+    config: BacktestConfig
 
-    
-    up_entries = aux.iloc[up_entries]["Date"].array
-    out = aux_total.iloc[out_idx]["Date"].array
-    
+    @property
+    def net_pnl(self) -> float:
+        return float(self.trades["net_pnl"].sum()) if not self.trades.empty else 0.0
 
-    prices_pair1_entry = data[pair1].loc[up_entries]
-    prices_pair1_exit = data[pair1].loc[out]
-
-
-    prices_pair2_entry = data[pair2].loc[up_entries]
-    prices_pair2_exit = data[pair2].loc[out]
-    up_entries_df= pd.DataFrame( {'entry':up_entries, 'out':out, 'entry_price_short':prices_pair1_entry.values,
-                                  'exit_price_short':prices_pair1_exit.values,
-                                  'entry_price_long':prices_pair2_entry.values,
-                                    'exit_price_long':prices_pair2_exit.values})
-
-    up_entries_df = pd.concat([up_entries_df.head(1),up_entries_df[up_entries_df.entry > up_entries_df.out.shift()]])
-    up_entries_df["type"] = "up_signal"
-    # down entries 
-    down_entries = aux[aux[0] <= -tresh].index
-
-    out_idx = np.asarray([i+ half_life for i in down_entries])
-
-    down_entries = aux.iloc[down_entries]["Date"].array
-    out = aux_total.iloc[out_idx]["Date"].array
+    @property
+    def gross_return(self) -> float:
+        return self.net_pnl / self.config.gross_notional
 
 
-    # down point, pair1 is long, pair2 is short
-    prices_pair1_entry = data[pair1].loc[down_entries]
-    prices_pair1_exit = data[pair1].loc[out]
-    prices_pair2_entry = data[pair2].loc[down_entries]
-    prices_pair2_exit = data[pair2].loc[out]
-    down_entries_df = pd.DataFrame( {'entry':down_entries, 'out':out,
-                                     'entry_price_long':prices_pair1_entry.values,
-                                     "exit_price_long":prices_pair1_exit.values,
-                                     'entry_price_short':prices_pair2_entry.values,
-                                     "exit_price_short":prices_pair2_exit.values})
+@dataclass(frozen=True)
+class _OpenPosition:
+    direction: int
+    entry_index: int
+    entry_time: pd.Timestamp
+    entry_y: float
+    entry_x: float
+    qty_y: float
+    qty_x: float
+    entry_cost: float
 
 
-    down_entries_df = pd.concat([down_entries_df.head(1),down_entries_df[down_entries_df.entry > down_entries_df.out.shift()]])
-    down_entries_df["type"] = "down_signal"
-    print(down_entries_df)
+def run_pair_backtest(
+    model: FormationModel,
+    dependent_prices: pd.Series,
+    independent_prices: pd.Series,
+    config: BacktestConfig,
+    *,
+    dependent_funding: pd.DataFrame | None = None,
+    independent_funding: pd.DataFrame | None = None,
+    spread_history: pd.Series | None = None,
+) -> BacktestResult:
+    """Run a one-position-per-pair event loop on an out-of-sample trade window.
 
-    res = pd.concat([up_entries_df, down_entries_df])
-    res["pair"] = pair1 + "_" + pair2
-    return res
+    A signal at bar t is filled at the close of bar t+1 with adverse slippage.
+    This deliberately avoids pretending that the triggering close was tradable.
+    """
 
+    prices = pd.concat((dependent_prices, independent_prices), axis=1, join="inner").dropna()
+    prices.columns = ["y", "x"]
+    if len(prices) < 3:
+        raise ValueError("trade window needs at least three aligned prices")
+    zscores = _zscores(model, prices["y"], prices["x"], config, spread_history)
+    position: _OpenPosition | None = None
+    trades: list[PairTrade] = []
 
-def stationarity_bool(a, cutoff = 0.05):
-  a = np.ravel(a)
-  if adfuller(a)[1] < cutoff:
-    return True
-  else:
-    return False
+    for index in range(len(prices) - 1):
+        zscore = float(zscores.iloc[index])
+        next_timestamp = pd.Timestamp(prices.index[index + 1])
+        next_y = float(prices["y"].iloc[index + 1])
+        next_x = float(prices["x"].iloc[index + 1])
 
-  ## OLS implementation
-def ols(y, x):
+        if position is None:
+            previous_zscore = float(zscores.iloc[index - 1]) if index else 0.0
+            direction = _entry_direction(previous_zscore, zscore, config.entry_z)
+            if direction:
+                position = _open_position(
+                    direction, index + 1, next_timestamp, next_y, next_x, model.beta, config
+                )
+            continue
 
-  """
-  ordinary least squares regression function
-  """
-  n = len(x)
-  beta = (n*np.sum(x * y)-np.sum(y)*np.sum(x)  )/( n*np.sum(x**2) - np.sum(x)**2 )
+        holding_bars = index - position.entry_index + 1
+        exit_reason = _exit_reason(zscore, holding_bars, config)
+        if exit_reason is not None:
+            trades.append(
+                _close_position(
+                    position,
+                    next_timestamp,
+                    next_y,
+                    next_x,
+                    holding_bars,
+                    exit_reason,
+                    config,
+                    dependent_funding,
+                    independent_funding,
+                )
+            )
+            position = None
 
-  alpha = np.mean(y) - beta* np.mean(x)
-
-  resid = y - (beta*x + alpha)
-  return beta, alpha, resid
-
-def calc_half_life(resid):
-  lag_resid = resid.shift(1).bfill()
-  delta_resid = resid  - lag_resid
-
-  beta, alpha, resid = ols(delta_resid, lag_resid)
-  half = -1* np.log(2)/beta
-  return half
-
-
-
-if __name__ == "__main__":
-    # Example usage:
-    tickers_yf = ["ALPA4.SA", "BBSE3.SA"]
-
-    all_pairs =  list(itertools.combinations(tickers_yf,2))
-
-
-    start = "2015-03-01"
-    end = "2024-07-09"
-    base = yf.download(tickers_yf, start=start, end=end)
-    base = base["Adj Close"].dropna()
-
-    res_total = pd.DataFrame(
-           columns = ["pair", "entry", "out", "type", "entry_price_long", "exit_price_long", "entry_price_short", "exit_price_short"]
+    if position is not None:
+        final_time = pd.Timestamp(prices.index[-1])
+        trades.append(
+            _close_position(
+                position,
+                final_time,
+                float(prices["y"].iloc[-1]),
+                float(prices["x"].iloc[-1]),
+                len(prices) - 1 - position.entry_index,
+                "end_of_data",
+                config,
+                dependent_funding,
+                independent_funding,
+            )
         )
-    start_treino_date = base.index.min()
-    end_treino_date = start_treino_date + pd.DateOffset(months=12)
-    start_test_date = end_treino_date
-    end_test_date = start_test_date + pd.DateOffset(months=3)
-
-    for pair1, pair2 in all_pairs:
-        start_treino_date = base.index.min()
-        end_treino_date = start_treino_date + pd.DateOffset(months=12)
-        start_test_date = end_treino_date
-        end_test_date = start_test_date + pd.DateOffset(months=3)
-
-        while end_test_date <= (base.index[-1]+ pd.DateOffset(months=1)):
-            print("periodo treino", start_treino_date, end_treino_date)
-            print("periodo teste", start_test_date, end_test_date)
-            print(pair1, pair2)
-            eval_base, trade_base = base.loc[start_treino_date:end_treino_date], base.loc[start_test_date:end_test_date]
-            beta, alpha, eval_resid = ols(eval_base[pair1], eval_base[pair2])
+    frame = pd.DataFrame([asdict(trade) for trade in trades])
+    return BacktestResult(trades=frame, zscores=zscores, config=config)
 
 
-            try:
-                is_coint = stationarity_bool(eval_resid)
-            except:
-                print(f"problema no {pair1}, {pair2}")
+def _zscores(
+    model: FormationModel,
+    dependent_prices: pd.Series,
+    independent_prices: pd.Series,
+    config: BacktestConfig,
+    spread_history: pd.Series | None,
+) -> pd.Series:
+    """Scale the frozen-model spread using only observations available at t-1."""
 
-                start_treino_date = start_test_date + pd.DateOffset(months=3)
-                end_treino_date = start_treino_date + pd.DateOffset(months=12)
-                start_test_date = end_treino_date
-                end_test_date = start_test_date + pd.DateOffset(months=3)
-                continue
-            half_life = math.ceil(calc_half_life(eval_resid))
+    spread = model.spread(dependent_prices, independent_prices)
+    if config.signal_scale == "formation":
+        return (spread - model.spread_mean) / model.spread_std
 
-            if is_coint:
-
-                print("cointegrado")
-                _, _, trade_resid = ols(trade_base[pair1], trade_base[pair2])
-
-                sigma = eval_resid.std()
-                mean = eval_resid.mean()
-
-
-            # avaliacao do spread acima da média
-                norm_trade_resid = (trade_resid - mean)/sigma
-
-                res = get_entries(norm_trade_resid, half_life=half_life, tresh=2, pair1=pair1, pair2=pair2, data=base.loc[start_test_date:])
-
-                plt.plot(eval_resid.index, (eval_resid.values - mean)/sigma)
-                plt.plot(norm_trade_resid.index, norm_trade_resid.values, color="green")
-                up_entries, down_entries = res[res["type"] == "up_signal"], res[res["type"] == "down_signal"]
-                if len(up_entries) > 0:
-                    plt.scatter(up_entries.entry, norm_trade_resid.loc[up_entries.entry].values, color="black", marker='>')
-                    if max(up_entries.out) <= norm_trade_resid.index[-1]:
-                        plt.scatter(up_entries.out, norm_trade_resid.loc[up_entries.out].values, color="black", marker='<')
-                if len(down_entries) > 0:
-                    print(down_entries)
-                    plt.scatter(down_entries.entry, norm_trade_resid.loc[down_entries.entry].values, color="red" ,marker='>')
-                    if max(down_entries.out) <= norm_trade_resid.index[-1]:
-
-                        plt.scatter(down_entries.out, norm_trade_resid.loc[down_entries.out].values, color="red", marker='<')
-                plt.savefig(f"{end_test_date} - {pair1} x {pair2}")
-                plt.close()
+    history = pd.Series(dtype=float) if spread_history is None else spread_history.dropna()
+    combined = pd.concat((history, spread))
+    combined = combined.loc[lambda values: ~values.index.duplicated(keep="last")]
+    if config.signal_scale == "ewma":
+        scale = combined.ewm(
+            span=config.volatility_span_bars,
+            adjust=False,
+            min_periods=config.volatility_span_bars,
+        ).std(bias=False)
+    else:
+        scale = combined.rolling(
+            window=config.volatility_span_bars,
+            min_periods=config.volatility_span_bars,
+        ).std(ddof=1)
+    scale = scale.shift(1).reindex(spread.index)
+    return (spread - model.spread_mean) / scale
 
 
-                res_total = pd.concat([res_total, res])
-            start_treino_date = start_test_date + pd.DateOffset(months=3)
-            end_treino_date = start_treino_date + pd.DateOffset(months=12)
-            start_test_date = end_treino_date
-            end_test_date = start_test_date + pd.DateOffset(months=3)
-
-quit()
-res_total.to_csv("resultados_backtest.csv")
-quit()
-aux_res_entries["entry_price_long"] = 0
-aux_res_entries["exit_price_long"] = 0
-
-aux_res_entries["entry_price_short"] = 0
-aux_res_entries["exit_price_short"] = 0
-
-# datas para as entradas up, >=2 std acima
-entry_dates_up = aux_res_entries[aux_res_entries.type == "up_entry"].entry.values
-exit_dates_up = aux_res_entries[aux_res_entries.type == "up_entry"].out.values 
+def _entry_direction(previous_zscore: float, zscore: float, entry_z: float) -> int:
+    if previous_zscore < entry_z <= zscore:
+        return -1  # short y / long x: the spread is positive and expensive
+    if previous_zscore > -entry_z >= zscore:
+        return 1  # long y / short x: the spread is negative and cheap
+    return 0
 
 
-for i in range(len(entry_dates_up)):
-   
-   entry,exit = entry_dates_up[i], exit_dates_up[i]
-   aux_res_entries.loc[entry, "entry_price_long"] = base.loc[entry, pair2]
-   aux_res_entries.loc[exit, "exit_price_long"] = base.loc[exit, pair2]
-   aux_res_entries.loc[entry, "entry_price_short"] = base.loc[exit, pair1]
-   aux_res_entries.loc[exit, "entry_price_short"] = base.loc[exit, pair1]
-   
-entry_dates_down = aux_res_entries[aux_res_entries.type == "down_entry"].entry.values
-exit_dates_down = aux_res_entries[aux_res_entries.type == "down_entry"].out.values 
+def _open_position(
+    direction: int,
+    entry_index: int,
+    entry_time: pd.Timestamp,
+    raw_y: float,
+    raw_x: float,
+    beta: float,
+    config: BacktestConfig,
+) -> _OpenPosition:
+    abs_beta = abs(beta)
+    y_notional = config.gross_notional / (1 + abs_beta)
+    x_notional = config.gross_notional - y_notional
+    entry_y = _fill_price(raw_y, direction, config.slippage_bps)
+    entry_x = _fill_price(raw_x, -direction, config.slippage_bps)
+    qty_y = direction * y_notional / entry_y
+    qty_x = -direction * x_notional / entry_x
+    entry_cost = (abs(qty_y * entry_y) + abs(qty_x * entry_x)) * config.taker_fee_bps / 10_000
+    return _OpenPosition(
+        direction=direction,
+        entry_index=entry_index,
+        entry_time=entry_time,
+        entry_y=entry_y,
+        entry_x=entry_x,
+        qty_y=qty_y,
+        qty_x=qty_x,
+        entry_cost=entry_cost,
+    )
 
 
-### add down entry prices
+def _close_position(
+    position: _OpenPosition,
+    exit_time: pd.Timestamp,
+    raw_y: float,
+    raw_x: float,
+    holding_bars: int,
+    exit_reason: ExitReason,
+    config: BacktestConfig,
+    dependent_funding: pd.DataFrame | None,
+    independent_funding: pd.DataFrame | None,
+) -> PairTrade:
+    exit_y = _fill_price(raw_y, -position.direction, config.slippage_bps)
+    exit_x = _fill_price(raw_x, position.direction, config.slippage_bps)
+    gross_pnl = position.qty_y * (exit_y - position.entry_y)
+    gross_pnl += position.qty_x * (exit_x - position.entry_x)
+    exit_notional = abs(position.qty_y * exit_y) + abs(position.qty_x * exit_x)
+    exit_cost = exit_notional * config.taker_fee_bps / 10_000
+    funding_pnl = _funding_pnl(
+        position.qty_y, position.entry_time, exit_time, dependent_funding
+    ) + _funding_pnl(position.qty_x, position.entry_time, exit_time, independent_funding)
+    trading_cost = position.entry_cost + exit_cost
+    net_pnl = gross_pnl - trading_cost + funding_pnl
+    return PairTrade(
+        direction=position.direction,
+        entry_time=position.entry_time,
+        exit_time=exit_time,
+        entry_y=position.entry_y,
+        entry_x=position.entry_x,
+        exit_y=exit_y,
+        exit_x=exit_x,
+        qty_y=position.qty_y,
+        qty_x=position.qty_x,
+        exit_reason=exit_reason,
+        gross_pnl=gross_pnl,
+        trading_cost=trading_cost,
+        funding_pnl=funding_pnl,
+        net_pnl=net_pnl,
+        gross_return=net_pnl / config.gross_notional,
+        holding_bars=max(1, holding_bars),
+    )
 
-aux_res_entries.loc[aux_res_entries.type == "down_entry", "entry_price_long"]\
-                        = base.loc[entry_dates_up,pair1].values
 
-aux_res_entries.loc[aux_res_entries.type == "down_entry", "exit_price_long"]\
-                        = base.loc[exit_dates_up,pair1].values
+def _fill_price(raw_price: float, side: int, slippage_bps: float) -> float:
+    """Apply adverse slippage: buys pay more; shorts sell for less."""
 
-aux_res_entries.loc[aux_res_entries.type == "down_entry", "entry_price_short"]\
-                        = base.loc[entry_dates_up,pair2].values
-
-aux_res_entries.loc[aux_res_entries.type == "down_entry", "exit_price_short"]\
-                        = base.loc[exit_dates_up,pair2].values
+    if raw_price <= 0:
+        raise ValueError("prices must be positive")
+    return raw_price * (1 + side * slippage_bps / 10_000)
 
 
-print(aux_res_entries)
-aux_res_entries.to_csv("res.csv")
+def _exit_reason(zscore: float, holding_bars: int, config: BacktestConfig) -> ExitReason | None:
+    if abs(zscore) <= config.exit_z:
+        return "mean_reversion"
+    if abs(zscore) >= config.stop_z:
+        return "stop_loss"
+    if holding_bars >= config.max_holding_bars:
+        return "time_stop"
+    return None
+
+
+def _funding_pnl(
+    quantity: float,
+    entry_time: pd.Timestamp,
+    exit_time: pd.Timestamp,
+    funding: pd.DataFrame | None,
+) -> float:
+    if funding is None or funding.empty:
+        return 0.0
+    required = {"funding_time", "funding_rate", "mark_price"}
+    if missing := required.difference(funding.columns):
+        raise ValueError(f"funding data is missing columns: {sorted(missing)}")
+    events = funding.copy()
+    events["funding_time"] = pd.to_datetime(events["funding_time"], utc=True)
+    selected = events[(events["funding_time"] > entry_time) & (events["funding_time"] <= exit_time)]
+    mark_price = pd.to_numeric(selected["mark_price"], errors="raise").astype(float)
+    funding_rate = pd.to_numeric(selected["funding_rate"], errors="raise").astype(float)
+    return float(-(quantity * mark_price * funding_rate).sum())

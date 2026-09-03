@@ -10,6 +10,7 @@ import pandas as pd
 from .cointegration import FormationModel
 
 ExitReason = Literal["mean_reversion", "stop_loss", "time_stop", "end_of_data"]
+SignalScale = Literal["formation", "ewma", "rolling", "half_life_rolling"]
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,8 @@ class BacktestConfig:
     gross_notional: float = 1.0
     taker_fee_bps: float = 5.0
     slippage_bps: float = 1.0
+    signal_scale: SignalScale = "formation"
+    volatility_span_bars: int = 72
 
     def __post_init__(self) -> None:
         if not 0 < self.exit_z < self.entry_z < self.stop_z:
@@ -31,6 +34,10 @@ class BacktestConfig:
             raise ValueError("max_holding_bars and gross_notional must be positive")
         if self.taker_fee_bps < 0 or self.slippage_bps < 0:
             raise ValueError("costs cannot be negative")
+        if self.signal_scale not in {"formation", "ewma", "rolling", "half_life_rolling"}:
+            raise ValueError("signal_scale must be formation, ewma, rolling, or half_life_rolling")
+        if self.volatility_span_bars < 2:
+            raise ValueError("volatility_span_bars must be at least two")
 
     @property
     def cost_rate(self) -> float:
@@ -92,6 +99,7 @@ def run_pair_backtest(
     *,
     dependent_funding: pd.DataFrame | None = None,
     independent_funding: pd.DataFrame | None = None,
+    spread_history: pd.Series | None = None,
 ) -> BacktestResult:
     """Run a one-position-per-pair event loop on an out-of-sample trade window.
 
@@ -103,7 +111,7 @@ def run_pair_backtest(
     prices.columns = ["y", "x"]
     if len(prices) < 3:
         raise ValueError("trade window needs at least three aligned prices")
-    zscores = model.zscore(prices["y"], prices["x"])
+    zscores = _zscores(model, prices["y"], prices["x"], config, spread_history)
     position: _OpenPosition | None = None
     trades: list[PairTrade] = []
 
@@ -157,6 +165,37 @@ def run_pair_backtest(
         )
     frame = pd.DataFrame([asdict(trade) for trade in trades])
     return BacktestResult(trades=frame, zscores=zscores, config=config)
+
+
+def _zscores(
+    model: FormationModel,
+    dependent_prices: pd.Series,
+    independent_prices: pd.Series,
+    config: BacktestConfig,
+    spread_history: pd.Series | None,
+) -> pd.Series:
+    """Scale the frozen-model spread using only observations available at t-1."""
+
+    spread = model.spread(dependent_prices, independent_prices)
+    if config.signal_scale == "formation":
+        return (spread - model.spread_mean) / model.spread_std
+
+    history = pd.Series(dtype=float) if spread_history is None else spread_history.dropna()
+    combined = pd.concat((history, spread))
+    combined = combined.loc[lambda values: ~values.index.duplicated(keep="last")]
+    if config.signal_scale == "ewma":
+        scale = combined.ewm(
+            span=config.volatility_span_bars,
+            adjust=False,
+            min_periods=config.volatility_span_bars,
+        ).std(bias=False)
+    else:
+        scale = combined.rolling(
+            window=config.volatility_span_bars,
+            min_periods=config.volatility_span_bars,
+        ).std(ddof=1)
+    scale = scale.shift(1).reindex(spread.index)
+    return (spread - model.spread_mean) / scale
 
 
 def _entry_direction(previous_zscore: float, zscore: float, entry_z: float) -> int:
@@ -270,4 +309,6 @@ def _funding_pnl(
     events = funding.copy()
     events["funding_time"] = pd.to_datetime(events["funding_time"], utc=True)
     selected = events[(events["funding_time"] > entry_time) & (events["funding_time"] <= exit_time)]
-    return float(-(quantity * selected["mark_price"] * selected["funding_rate"]).sum())
+    mark_price = pd.to_numeric(selected["mark_price"], errors="raise").astype(float)
+    funding_rate = pd.to_numeric(selected["funding_rate"], errors="raise").astype(float)
+    return float(-(quantity * mark_price * funding_rate).sum())

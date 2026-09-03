@@ -38,7 +38,12 @@ def main() -> None:
 
 
 def _load_prices(
-    connection: psycopg.Connection, symbols: list[str], interval: str, bars: int
+    connection: psycopg.Connection,
+    symbols: list[str],
+    interval: str,
+    bars: int,
+    *,
+    require_bars: bool = True,
 ) -> pd.DataFrame:
     with connection.cursor() as cursor:
         cursor.execute(
@@ -55,7 +60,7 @@ def _load_prices(
         rows = cursor.fetchall()
     frame = pd.DataFrame(rows, columns=["open_time", "symbol", "close"])
     prices = frame.pivot(index="open_time", columns="symbol", values="close").sort_index().dropna()
-    if len(prices) < bars:
+    if require_bars and len(prices) < bars:
         raise SystemExit(f"need {bars} common closed bars; received {len(prices)}")
     return prices.iloc[-bars:]
 

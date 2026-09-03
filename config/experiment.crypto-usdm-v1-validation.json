@@ -1,0 +1,27 @@
+{
+  "name": "crypto-usdm-v1-validation-with-funding-and-matching",
+  "universe": "config/universe.crypto-usdm-v1.json",
+  "interval": "1h",
+  "holdout_bars": 720,
+  "formation_bars": [2160],
+  "trade_bars": 168,
+  "step_bars": 168,
+  "fdr_alpha": 0.05,
+  "min_half_life_bars": 4,
+  "max_half_life_bars": 72,
+  "include_funding": true,
+  "portfolio_matching": true,
+  "execution": {
+    "entry_z": 2.0,
+    "exit_z": 0.5,
+    "stop_z": 4.0,
+    "max_holding_bars": 72,
+    "taker_fee_bps": 5.0,
+    "slippage_bps": 1.0
+  },
+  "signal_variants": [
+    {"name": "base_6bps_per_leg", "signal_scale": "formation"},
+    {"name": "stress_12bps_per_leg", "signal_scale": "formation", "taker_fee_bps": 10.0, "slippage_bps": 2.0},
+    {"name": "stress_18bps_per_leg", "signal_scale": "formation", "taker_fee_bps": 15.0, "slippage_bps": 3.0}
+  ]
+}

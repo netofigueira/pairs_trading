@@ -21,6 +21,9 @@ ausência de quote executável ou forecast também é registrada. Isso diferenci
 3. **P&L:** realizado e não realizado, sem esconder custos ou dias flat.
 4. **Auditoria:** `as_of`, timestamps dos inputs, configuração e SHA do código.
 
+Na VM, o painel é servido apenas dentro da tailnet em
+`https://free-tier-a1.tail7f5470.ts.net:8443/paper`.
+
 ## Invariantes
 
 - A regra congelada só permite `short` ou `flat`; long permanece fora.

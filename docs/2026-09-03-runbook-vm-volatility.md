@@ -21,6 +21,10 @@ QUANT_VM_HOST=163.176.128.107 ./scripts/open_timescale_tunnel.sh
 Na VM, `tailscale set --accept-dns=false` evita conflito com o DHCP da Oracle;
 isso não afeta o acesso dos clientes pela tailnet.
 
+O dashboard privado fica em
+`https://free-tier-a1.tail7f5470.ts.net:8443/`; o cockpit operacional é a
+rota `/paper`.
+
 ## Serviços que devem estar ativos
 
 ```bash

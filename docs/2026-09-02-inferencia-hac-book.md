@@ -57,12 +57,43 @@ teste é da média diária incondicional, que é o que o capital vivencia.
    concentram o retorno. O rerun com teto no motor rolling é pré-requisito para
    citar este número como expectativa do paper.
 
+## Sensibilidade de lags e o teste pré-declarado com teto
+
+Ressalvas do review incorporadas em rerodadas:
+
+**Lags estendidos (book sem teto):** t continua estável e até sobe com lags
+maiores — 2,20 (14), 2,25 (21), 2,32 (28), 2,34 (30), 2,40 (42), 2,52 (60).
+A dependência serial além de um mês não desfaz o resultado sem teto.
+
+**Teto operacional (experimento pré-declarado
+`config/experiment.tape-book-cap-v1.json`, commitado antes da execução):**
+entradas recusadas quando os contratos brutos abertos excederiam 0,5 (capital
+estático de 1 BTC, aproximação conservadora do teto dinâmico). Resultado:
+
+| Métrica | Sem teto | Com teto 0,5 |
+|---|---:|---:|
+| Trades aceitos | 520 | 264 (256 recusados) |
+| P&L total (BTC) | +0,372 | +0,095 |
+| Média diária (BTC) | +0,000232 | +0,000059 (~2,1% a.a.) |
+| t NW (14→60) | 2,20→2,52 | **1,05→1,21** |
+
+**O critério pré-declarado (t≥2 em todos os lags) FALHOU.** O teto recusa
+metade das entradas, justamente as rajadas que concentram o retorno, e o que
+sobra não é estatisticamente distinguível de zero. Conclusão honesta: o edge
+histórico demonstrável vive na frequência plena das rajadas, que o sizing
+operacional atual não consegue capturar. Ou o teto sobe com capital/margem
+dimensionados para as rajadas (pesquisa da Fase 3 revisitada, com
+pré-declaração), ou a expectativa do paper é a linha com teto: positiva,
+pequena e não provada.
+
+Artefato: `artifacts/tape-book-hac-cap-v1.json`.
+
 ## Decisão
 
-- Estado honesto: **evidência promissora** — edge positivo pequeno, dependente
-  de regime, t≈2,2-2,3 no teste eficiente com seleção causal, porém teste
-  escolhido a posteriori, marcação sintética e sizing diferente da política do
-  paper. Justifica a Fase 5; não prova a estratégia nem autoriza capital.
+- Estado honesto: **promissora sem teto (t=2,2-2,5, seleção causal), não
+  demonstrada no sizing operacional (t≈1,1 com teto de 0,5 contrato/BTC,
+  critério pré-declarado falhou)**. Marcação sintética e prints de terceiros
+  em ambos os casos. Justifica a Fase 5 como árbitro; não autoriza capital.
 - Fase 5 (paper no holdout, iniciado 2026-09-03, teto 0,5 contrato/BTC,
   execução postada) passa a ser o critério de promoção. Nada mais será ajustado
   no histórico: qualquer novo teste retrospectivo nesta trilha precisa de

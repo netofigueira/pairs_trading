@@ -67,6 +67,13 @@ def main() -> None:
     parser.add_argument("--dvol", default="data/market/deribit/volatility-index/BTC.csv.gz")
     parser.add_argument("--delivery", default="data/market/deribit/delivery_prices/btc_usd.csv")
     parser.add_argument("--contracts", type=float, default=0.1)
+    parser.add_argument(
+        "--max-gross-contracts",
+        type=float,
+        default=None,
+        help="refuse entries that would push gross open contracts above this cap",
+    )
+    parser.add_argument("--lags", default="14,21,28")
     parser.add_argument("--output", default="artifacts/tape-book-hac-v1.json")
     args = parser.parse_args()
 
@@ -90,7 +97,9 @@ def main() -> None:
 
     daily_pnl: dict[pd.Timestamp, float] = {}
     open_by_day: dict[pd.Timestamp, int] = {}
+    open_expiries: list[pd.Timestamp] = []
     n_trades = 0
+    n_refused_by_cap = 0
     for day, day_trades in tape.groupby(tape["traded_at"].dt.date, sort=True):
         decision_at = pd.Timestamp(f"{day}T{args.decision_time}:00Z")
         forecast_rv = forecast_by_date.get(day)
@@ -108,6 +117,11 @@ def main() -> None:
         if float(forecast_rv) ** 2 >= float(entry["mean_bid_variance"]):
             continue
         expiry_at = pd.Timestamp(legs["expiry"].iloc[0])
+        if args.max_gross_contracts is not None:
+            open_now = sum(1 for e in open_expiries if e > decision_at)
+            if (open_now + 1) * args.contracts > args.max_gross_contracts + 1e-12:
+                n_refused_by_cap += 1
+                continue
         try:
             settle = delivery_price_on(delivery, expiry_at)
         except ValueError:
@@ -132,6 +146,7 @@ def main() -> None:
             funding_rate_hourly=funding_rate,
         )
         n_trades += 1
+        open_expiries.append(expiry_at)
         rows = result["daily"]
         # Daily steps: option mid change plus that segment's hedge/funding/fees;
         # the final step closes any gap so the steps sum exactly to the total.
@@ -162,7 +177,8 @@ def main() -> None:
     series = pd.Series(0.0, index=calendar)
     for at, value in daily_pnl.items():
         series.loc[at] += value
-    hac = [newey_west_tstat(series.to_numpy(), lags=lags) for lags in (14, 21, 28)]
+    lag_list = [int(lag) for lag in args.lags.split(",")]
+    hac = [newey_west_tstat(series.to_numpy(), lags=lags) for lags in lag_list]
 
     payload = {
         "schema_version": 1,
@@ -170,6 +186,8 @@ def main() -> None:
         "spread_scenario": args.spread_scenario,
         "contracts_per_entry": args.contracts,
         "n_trades": n_trades,
+        "n_refused_by_cap": n_refused_by_cap,
+        "max_gross_contracts": args.max_gross_contracts,
         "n_days": int(series.size),
         "days_with_position": int(sum(1 for v in open_by_day.values() if v > 0)),
         "max_concurrent_positions": int(max(open_by_day.values())),

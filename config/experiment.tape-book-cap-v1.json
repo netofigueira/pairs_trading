@@ -1,0 +1,25 @@
+{
+  "experiment_id": "tape-book-cap-v1",
+  "declared_at": "2026-09-02",
+  "declared_before_results": true,
+  "question": "does the tape-driven short book keep a positive HAC-significant daily mean under the operational position cap of the paper policy?",
+  "book": {
+    "contracts_per_entry": 0.1,
+    "capital_btc": 1.0,
+    "max_gross_contracts": 0.5,
+    "cap_rule": "an entry is refused when gross open contracts after it would exceed max_gross_contracts; capital is static (no compounding), the conservative approximation of the dynamic 0.5 contracts per BTC of equity cap",
+    "entry_fill": "print minus Tardis-calibrated P50 half-spread (crossing floor)",
+    "selection": "strictly pre-decision prints (traded_at <= 12:00 UTC, last print per leg, max age 2h)"
+  },
+  "inference": {
+    "statistic": "mean of the aggregated daily book P&L, flat days count as zero",
+    "hac_lags": [14, 21, 28, 30, 42, 60],
+    "rationale_for_lags": "DTE reaches 30 days and regime shocks can outlast a month; 42 and 60 are stress lags"
+  },
+  "success_criterion": "capped book daily mean > 0 with Newey-West t >= 2 at every lag in hac_lags",
+  "frozen_inputs": {
+    "gate": "GARCH 14-day causally corrected forecast at 08:00 UTC vs mean bid-IV variance (unchanged)",
+    "tape": "market.option_trade, 2021-04-01 to 2026-08-18",
+    "uncapped_reference": "artifacts/tape-book-hac-v1.json"
+  }
+}

@@ -1,5 +1,6 @@
 {
   "name": "Quant | Hourly option tape collection",
+  "active": true,
   "settings": {"executionOrder": "v1"},
   "nodes": [
     {

@@ -15,3 +15,14 @@ Cada workflow deve:
 5. permanecer desativado até passar por uma execução manual e reconciliação.
 
 O banco é a fonte de verdade para o cursor. Não use estado de execução do n8n como checkpoint exclusivo: ele pode expirar, ser apagado ou ser reexecutado.
+
+## Variáveis de runtime
+
+O workflow de coleta usa `QUANT_COLLECTOR_TOKEN` injetado no container n8n e,
+por isso, o Compose deve definir `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`. O token
+continua fora do workflow versionado e só trafega na rede Docker privada.
+
+O editor deve ser servido apenas pela tailnet (Tailscale Serve), nunca por
+Funnel público. Para importar a agenda de tape, use
+`n8n import:workflow --input=/caminho/03-quant-hourly-tape-collection.json`;
+o arquivo já vem marcado como ativo.

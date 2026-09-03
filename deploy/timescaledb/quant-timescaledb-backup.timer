@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the quant TimescaleDB backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

@@ -23,3 +23,19 @@ docker compose logs -f timescaledb
 ```
 
 Faça backup antes de upgrades de versão e teste a restauração em outro volume. Não use tags mutáveis de imagem; o Compose fixa a combinação TimescaleDB/PostgreSQL.
+
+## Backup diário na VM
+
+`quant-timescaledb-backup.service` gera um dump no formato PostgreSQL custom,
+valida o arquivo com `pg_restore --list` e mantém os últimos 14 dias em
+`/home/opc/backups/quant-timescaledb`. Instale o service e o timer em
+`/etc/systemd/system`, então ative-o com:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now quant-timescaledb-backup.timer
+systemctl list-timers quant-timescaledb-backup.timer
+```
+
+Esse backup local protege contra erro operacional; antes de depender da VM para
+pesquisa contínua, replique os dumps para um storage externo.

@@ -1,0 +1,12 @@
+[Unit]
+Description=Create a verified local backup of quant TimescaleDB
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=opc
+Group=opc
+Environment=QUANT_BACKUP_DIR=/home/opc/backups/quant-timescaledb
+Environment=QUANT_BACKUP_RETENTION_DAYS=14
+ExecStart=/home/opc/quant-pairs/deploy/timescaledb/backup_timescaledb.sh

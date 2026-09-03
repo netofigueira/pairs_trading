@@ -68,7 +68,8 @@ A dependência serial além de um mês não desfaz o resultado sem teto.
 **Teto operacional (experimento pré-declarado
 `config/experiment.tape-book-cap-v1.json`, commitado antes da execução):**
 entradas recusadas quando os contratos brutos abertos excederiam 0,5 (capital
-estático de 1 BTC, aproximação conservadora do teto dinâmico). Resultado:
+estático de 1 BTC, uma aproximação do teto dinâmico). Se a equity cair, o
+cap estático permite mais risco; se subir, bloqueia mais. Resultado:
 
 | Métrica | Sem teto | Com teto 0,5 |
 |---|---:|---:|
@@ -105,5 +106,6 @@ Artefato: `artifacts/tape-book-hac-cap-v1.json`.
   como forward, funding constante, prints ≠ fills nossos).
 - HAC corrige dependência até o lag escolhido; choques de regime mais longos
   que ~1 mês não são capturados.
-- Sem teto de posições nem margem nesta série (mecânica testada à parte nas
-  Fases 3 e no motor rolling).
+- O artefato sem teto não inclui margem; o experimento capped limita contratos
+  brutos estáticos, mas ainda não reproduz o cap dinâmico por equity e margem
+  da política paper.

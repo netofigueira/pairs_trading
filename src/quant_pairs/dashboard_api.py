@@ -61,6 +61,65 @@ def volatility_page() -> str:
     return (Path(__file__).with_name("static") / "volatility.html").read_text(encoding="utf-8")
 
 
+@app.get("/paper", response_class=HTMLResponse)
+def paper_page() -> str:
+    return (Path(__file__).with_name("static") / "paper.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/v1/paper/overview")
+def paper_overview() -> dict[str, object]:
+    runs = _rows(
+        """SELECT id, as_of, created_at, holdout_id, code_version, status,
+                  config, input_quality
+           FROM research.paper_run ORDER BY as_of DESC LIMIT 1"""
+    )
+    if not runs:
+        return {"run": None, "decisions": [], "positions": [], "pnl": _empty_paper_pnl()}
+    decisions = _rows(
+        """SELECT id, decided_at, action, status, reason, forecast_rv, bid_iv,
+                  ask_iv, forecast_at, quotes_at, details
+           FROM research.paper_decision
+           WHERE run_id = %s ORDER BY decided_at DESC""",
+        (runs[0]["id"],),
+    )
+    positions = _rows(
+        """SELECT p.id, p.instrument_name, p.leg_type, p.side, p.opened_at,
+                  p.closed_at, p.contracts, p.entry_price_btc, p.status,
+                  m.marked_at, m.unrealized_pnl_btc, m.realized_pnl_btc,
+                  m.margin_estimate_btc
+           FROM research.paper_position AS p
+           LEFT JOIN LATERAL (
+               SELECT marked_at, unrealized_pnl_btc, realized_pnl_btc, margin_estimate_btc
+               FROM research.paper_mark WHERE position_id = p.id
+               ORDER BY marked_at DESC LIMIT 1
+           ) AS m ON TRUE
+           WHERE p.status = 'open'
+           ORDER BY p.opened_at DESC"""
+    )
+    pnl_rows = _rows(
+        """SELECT COALESCE(sum(m.unrealized_pnl_btc), 0) AS unrealized_pnl_btc,
+                  COALESCE(sum(m.realized_pnl_btc), 0) AS realized_pnl_btc,
+                  COALESCE(sum(m.margin_estimate_btc), 0) AS margin_estimate_btc
+           FROM research.paper_position AS p
+           LEFT JOIN LATERAL (
+               SELECT unrealized_pnl_btc, realized_pnl_btc, margin_estimate_btc
+               FROM research.paper_mark WHERE position_id = p.id
+               ORDER BY marked_at DESC LIMIT 1
+           ) AS m ON TRUE
+           WHERE p.status = 'open'"""
+    )
+    return {
+        "run": runs[0],
+        "decisions": decisions,
+        "positions": positions,
+        "pnl": pnl_rows[0] if pnl_rows else _empty_paper_pnl(),
+    }
+
+
+def _empty_paper_pnl() -> dict[str, float]:
+    return {"unrealized_pnl_btc": 0.0, "realized_pnl_btc": 0.0, "margin_estimate_btc": 0.0}
+
+
 @app.get("/api/v1/volatility/research")
 def volatility_research() -> dict[str, object]:
     path = Path(

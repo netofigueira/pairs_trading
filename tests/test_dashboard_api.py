@@ -22,6 +22,31 @@ def test_volatility_page_is_self_contained() -> None:
     assert "Walk-forward: frequência de refit" in page
 
 
+def test_paper_page_is_self_contained() -> None:
+    page = dashboard_api.paper_page()
+
+    assert "BTC volatility cockpit" in page
+    assert "/api/v1/paper/overview" in page
+
+
+def test_paper_overview_returns_latest_operational_snapshot(monkeypatch) -> None:
+    responses = iter(
+        [
+            [{"id": "run-1", "status": "blocked", "holdout_id": "volatility-live-v1"}],
+            [{"action": "flat", "status": "blocked", "reason": "quotes unavailable"}],
+            [],
+            [{"unrealized_pnl_btc": 0.0, "realized_pnl_btc": 0.0, "margin_estimate_btc": 0.0}],
+        ]
+    )
+    monkeypatch.setattr(dashboard_api, "_rows", lambda *_args, **_kwargs: next(responses))
+
+    overview = dashboard_api.paper_overview()
+
+    assert overview["run"]["id"] == "run-1"
+    assert overview["decisions"][0]["status"] == "blocked"
+    assert overview["positions"] == []
+
+
 def test_volatility_forecast_endpoint_loads_configured_artifact(tmp_path, monkeypatch) -> None:
     path = tmp_path / "forecast.json"
     path.write_text(json.dumps({"schema_version": 1, "horizons": {"30": {}}}))

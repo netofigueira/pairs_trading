@@ -9,4 +9,4 @@ User=opc
 Group=opc
 Environment=QUANT_BACKUP_DIR=/home/opc/backups/quant-timescaledb
 Environment=QUANT_BACKUP_RETENTION_DAYS=14
-ExecStart=/home/opc/quant-pairs/deploy/timescaledb/backup_timescaledb.sh
+ExecStart=/usr/bin/bash /home/opc/quant-pairs/deploy/timescaledb/backup_timescaledb.sh

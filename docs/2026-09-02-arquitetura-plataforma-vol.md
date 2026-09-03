@@ -125,19 +125,22 @@ nós — aceitável para candles (uma linha, sem paginação), ruim para tape
 container — acopla n8n ao filesystem da imagem. A opção HTTP mantém o
 desacoplamento.
 
-## Lacuna crítica a resolver antes da Fase 5 render dado
+## Lacuna crítica — resolvida em 2026-09-03
 
-A ingestão contínua do tape Deribit **não existe hoje**. `market.option_trade`
-veio de carga histórica pontual; os dois workflows n8n da VM estão inativos
-(`active: None`) e cobrem apenas candles Binance. Sem tape fresco diário
-chegando, a Fase 5 não tem o que marcar. O primeiro entregável operacional é,
-portanto, o endpoint de ingestão diária do tape no collector + o workflow n8n
-que o agenda — não uma tela.
+A ingestão contínua do tape Deribit não existia até aqui: `market.option_trade`
+veio de carga histórica pontual, e apenas o workflow n8n de candles Binance
+estava ativo em produção. Isso foi fechado: `POST /v1/collect-tape` no
+collector (mesmo padrão de auth e cursor incremental do endpoint de candle),
+usando o `HistoryDeribitClient` já testado (lag medido ~1 min contra o tape ao
+vivo), mais o workflow `n8n/workflows/03-quant-hourly-tape-collection.json`
+(cadência horária, clonado do workflow de candles já ativo). Código no
+GitHub (`79df404`); **deploy na VM (rebuild do collector + import/ativação do
+workflow) ainda pendente** — ver [[vm-workflow-e-infra]].
 
 ## Sequência sugerida (a confirmar)
 
-1. Endpoint de ingestão diária do tape no collector + workflow n8n que agenda e
-   alerta (destrava a Fase 5).
+1. ~~Endpoint de ingestão do tape no collector + workflow n8n que agenda~~ —
+   código pronto, falta deploy na VM.
 2. Continuous aggregates de cobertura/volume/IV + view de marcação do dia.
 3. Painel `/paper` lendo essas views + `research.paper_*` (observa a Fase 5).
 4. Migração incremental dos jobs de modelo (forecast, regime, HAC) de JSON para

@@ -70,6 +70,34 @@ class TimescaleDataStore:
                 cursor.executemany(_FUNDING_UPSERT, records)
         return len(records)
 
+    def upsert_option_trades(self, currency: str, data: pd.DataFrame) -> int:
+        if data.empty:
+            return 0
+        records = [
+            (
+                currency, _timestamp(row.timestamp), str(row.trade_id),
+                _int_or_none(row.trade_seq), row.instrument_name, _numeric(row.price),
+                _numeric(row.mark_price), _numeric(row.iv), _numeric(row.index_price),
+                _numeric(row.amount), _numeric(row.contracts), row.direction,
+                _int_or_none(row.tick_direction), _text_or_none(row.liquidation), row.source,
+            )
+            for row in data.itertuples(index=False)
+        ]
+        with self._psycopg.connect(self._database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.executemany(_OPTION_TRADE_UPSERT, records)
+        return len(records)
+
+    def latest_option_trade_time(self, currency: str) -> pd.Timestamp | None:
+        with self._psycopg.connect(self._database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT max(traded_at) FROM market.option_trade WHERE currency = %s",
+                    (currency,),
+                )
+                value = cursor.fetchone()[0]
+        return pd.Timestamp(value) if value is not None else None
+
     def _upsert_instrument(self, cursor: object, symbol: str) -> None:
         cursor.execute(
             """
@@ -96,6 +124,18 @@ def _base_asset(symbol: str) -> str:
     return symbol[:-4] if symbol.endswith("USDT") else symbol
 
 
+def _int_or_none(value: object) -> int | None:
+    if pd.isna(value):
+        return None
+    return int(value)
+
+
+def _text_or_none(value: object) -> str | None:
+    if pd.isna(value):
+        return None
+    return str(value)
+
+
 _CANDLE_UPSERT = """
 INSERT INTO market.candle (
     venue, market_type, symbol, interval, open_time, close_time, open, high, low, close,
@@ -117,4 +157,12 @@ INSERT INTO market.funding_rate (
 ON CONFLICT (venue, market_type, symbol, funding_time) DO UPDATE SET
     funding_rate = EXCLUDED.funding_rate, mark_price = EXCLUDED.mark_price,
     source_ingested_at = now()
+"""
+
+_OPTION_TRADE_UPSERT = """
+INSERT INTO market.option_trade (
+    currency, traded_at, trade_id, trade_seq, instrument_name, price, mark_price, iv,
+    index_price, amount, contracts, direction, tick_direction, liquidation, source
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (venue, currency, trade_id, traded_at) DO NOTHING
 """

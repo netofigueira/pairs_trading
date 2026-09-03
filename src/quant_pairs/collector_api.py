@@ -11,6 +11,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .binance_usdm import BinanceUSDMClient
+from .history_deribit import HistoryDeribitClient
 from .timescale import TimescaleDataStore
 
 app = FastAPI(title="Quant collector", docs_url=None, redoc_url=None)
@@ -24,6 +25,17 @@ class CollectRequest(BaseModel):
         default=None,
         ge=1,
         le=3650,
+        description="explicit historical range; bypasses the incremental cursor",
+    )
+
+
+class CollectTapeRequest(BaseModel):
+    currencies: list[str] = Field(default_factory=lambda: ["BTC", "ETH"])
+    initial_lookback_hours: int = Field(default=24, ge=1, le=8_760)
+    backfill_hours: int | None = Field(
+        default=None,
+        ge=1,
+        le=8_760,
         description="explicit historical range; bypasses the incremental cursor",
     )
 
@@ -60,6 +72,40 @@ def collect(
             "funding": store.upsert_funding(symbol, funding),
         }
     return result
+
+
+@app.post("/v1/collect-tape")
+def collect_tape(
+    request: CollectTapeRequest, x_collector_token: str = Header(default="")
+) -> dict[str, object]:
+    _authorize(x_collector_token)
+    database_url = _required_env("QUANT_PAIRS_DATABASE_URL")
+    store = TimescaleDataStore(database_url)
+    client = HistoryDeribitClient()
+    now = pd.Timestamp.now(tz=UTC)
+    result: dict[str, object] = {"currencies": {}}
+
+    for currency in request.currencies:
+        start = (
+            now - pd.Timedelta(hours=request.backfill_hours)
+            if request.backfill_hours is not None
+            else _incremental_tape_start(store, currency, now, request.initial_lookback_hours)
+        )
+        trades = client.option_trades(currency, start=start, end=now)
+        result["currencies"][currency] = {
+            "from": start.isoformat(),
+            "trades": store.upsert_option_trades(currency, trades),
+        }
+    return result
+
+
+def _incremental_tape_start(
+    store: TimescaleDataStore, currency: str, now: pd.Timestamp, initial_lookback_hours: int
+) -> pd.Timestamp:
+    latest = store.latest_option_trade_time(currency)
+    if latest is None:
+        return now - pd.Timedelta(hours=initial_lookback_hours)
+    return latest - pd.Timedelta(minutes=5)
 
 
 def _incremental_start(

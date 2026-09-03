@@ -1,0 +1,33 @@
+{
+  "name": "Quant | Hourly option tape collection",
+  "settings": {"executionOrder": "v1"},
+  "nodes": [
+    {
+      "id": "b2e1c5a1-7d3a-4f4c-9a6e-6c1f0e6f1a01",
+      "name": "Hourly schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 1}]}}
+    },
+    {
+      "id": "b2e1c5a1-7d3a-4f4c-9a6e-6c1f0e6f1a02",
+      "name": "Collect Deribit option tape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://quant-collector:8000/v1/collect-tape",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "X-Collector-Token", "value": "={{ $env.QUANT_COLLECTOR_TOKEN }}"}]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\"currencies\":[\"BTC\",\"ETH\"],\"initial_lookback_hours\":24}",
+        "options": {"timeout": 600000}
+      }
+    }
+  ],
+  "connections": {"Hourly schedule": {"main": [[{"node": "Collect Deribit option tape", "type": "main", "index": 0}]]}}
+}

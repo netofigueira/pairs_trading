@@ -120,18 +120,22 @@ def simulate_delta_hedged_short_basket(
     entry_credit_btc: float,
     entry_fees_btc: float,
     delivery_price: float,
-    funding: pd.DataFrame,
+    funding: pd.DataFrame | None,
     perp_taker_fee_rate: float = DEFAULT_PERP_TAKER_FEE_RATE,
     perp_contract_size_usd: float = PERP_CONTRACT_SIZE_USD,
     annualization_days: int = 365,
+    funding_rate_hourly: float | None = None,
 ) -> dict[str, object]:
     """Hold a short option basket to expiry, delta-hedging daily with the perp.
 
     Daily marks are built internally from the price and DVOL daily bars using
     the same availability, basis-carry and DVOL-anchored IV conventions as
-    ``build_daily_straddle_marks``.  Funding must cover the (entry, expiry]
-    window at hourly resolution.
+    ``build_daily_straddle_marks``.  Funding is either a real hourly history
+    covering (entry, expiry] or, when ``funding`` is None, a declared constant
+    ``funding_rate_hourly`` applied to the held notional.
     """
+    if (funding is None) == (funding_rate_hourly is None):
+        raise ValueError("provide exactly one of funding or funding_rate_hourly")
 
     entry = _utc(entry_at)
     expiry = _utc(expiry_at)
@@ -214,6 +218,7 @@ def simulate_delta_hedged_short_basket(
         funding=funding,
         perp_taker_fee_rate=perp_taker_fee_rate,
         perp_contract_size_usd=perp_contract_size_usd,
+        funding_rate_hourly=funding_rate_hourly,
     )
 
 
@@ -313,9 +318,10 @@ def _run_hedged_book(
     entry_credit_btc: float,
     entry_fees_btc: float,
     delivery_price: float,
-    funding: pd.DataFrame,
+    funding: pd.DataFrame | None,
     perp_taker_fee_rate: float,
     perp_contract_size_usd: float,
+    funding_rate_hourly: float | None = None,
 ) -> dict[str, object]:
     hedge_trading_pnl = 0.0
     hedge_fees = 0.0
@@ -338,13 +344,19 @@ def _run_hedged_book(
         segment_pnl = notional * (1 / point["underlying"] - 1 / next_underlying)
         segment_funding = 0.0
         if notional != 0.0:
-            segment_funding = funding_pnl_btc(
-                funding,
-                contracts=notional / perp_contract_size_usd,
-                start=point["at"],
-                end=next_at,
-                contract_size_usd=perp_contract_size_usd,
-            )
+            if funding is not None:
+                segment_funding = funding_pnl_btc(
+                    funding,
+                    contracts=notional / perp_contract_size_usd,
+                    start=point["at"],
+                    end=next_at,
+                    contract_size_usd=perp_contract_size_usd,
+                )
+            else:
+                hours = (next_at - point["at"]).total_seconds() / 3600.0
+                segment_funding = (
+                    -notional / point["underlying"] * float(funding_rate_hourly) * hours
+                )
         hedge_trading_pnl += segment_pnl
         funding_pnl += segment_funding
         daily_rows.append(

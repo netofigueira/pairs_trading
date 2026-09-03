@@ -18,6 +18,9 @@ emergência sem Tailscale, o host pode ser substituído explicitamente:
 QUANT_VM_HOST=163.176.128.107 ./scripts/open_timescale_tunnel.sh
 ```
 
+Na VM, `tailscale set --accept-dns=false` evita conflito com o DHCP da Oracle;
+isso não afeta o acesso dos clientes pela tailnet.
+
 ## Serviços que devem estar ativos
 
 ```bash
